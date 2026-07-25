@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "827637719607",
+    "project_id": "shapesnap-app",
+    "storage_bucket": "shapesnap-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:827637719607:android:db31344d7c76d9b3e295b2",
+        "android_client_info": {
+          "package_name": "com.example.shapesnap"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAF_OyNccFJ4dFauE-ge7nEogp5qaFvqKQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

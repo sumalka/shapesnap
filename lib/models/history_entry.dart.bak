@@ -1,0 +1,41 @@
+import 'package:hive/hive.dart';
+
+part 'history_entry.g.dart';
+
+@HiveType(typeId: 0)
+class HistoryEntry {
+  @HiveField(0)
+  final String id;
+  
+  @HiveField(1)
+  final String imagePath;
+  
+  @HiveField(2)
+  final String thumbnailPath;
+  
+  @HiveField(3)
+  final String bodyShape;
+  
+  @HiveField(4)
+  final double shoulderHipRatio;
+  
+  @HiveField(5)
+  final List<String> doRecommendations;
+  
+  @HiveField(6)
+  final List<String> dontRecommendations;
+  
+  @HiveField(7)
+  final DateTime timestamp;
+  
+  HistoryEntry({
+    required this.id,
+    required this.imagePath,
+    required this.thumbnailPath,
+    required this.bodyShape,
+    required this.shoulderHipRatio,
+    required this.doRecommendations,
+    required this.dontRecommendations,
+    required this.timestamp,
+  });
+}

@@ -1,0 +1,97 @@
+import 'dart:io';
+import 'package:hive/hive.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:image/image.dart' as img;
+import 'package:path/path.dart' as path;
+import '../models/history_entry.dart';
+
+class HistoryService {
+  static const String _historyBoxName = 'history';
+  
+  Box<HistoryEntry> get _box => Hive.box<HistoryEntry>(_historyBoxName);
+  
+  Future<void> saveHistoryEntry({
+    required File originalImage,
+    required String bodyShape,
+    required double shoulderHipRatio,
+    required List<String> doRecommendations,
+    required List<String> dontRecommendations,
+  }) async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final photosDir = Directory('${appDir.path}/user_photos');
+    final thumbnailsDir = Directory('${appDir.path}/thumbnails');
+    
+    if (!await photosDir.exists()) await photosDir.create();
+    if (!await thumbnailsDir.exists()) await thumbnailsDir.create();
+    
+    final timestamp = DateTime.now();
+    final id = timestamp.millisecondsSinceEpoch.toString();
+    
+    final imageFileName = '$id.jpg';
+    final thumbnailFileName = 'thumb_$id.jpg';
+    
+    final savedImagePath = '${photosDir.path}/$imageFileName';
+    await originalImage.copy(savedImagePath);
+    
+    final thumbnailPath = '${thumbnailsDir.path}/$thumbnailFileName';
+    await _createThumbnail(originalImage, thumbnailPath);
+    
+    final entry = HistoryEntry(
+      id: id,
+      imagePath: savedImagePath,
+      thumbnailPath: thumbnailPath,
+      bodyShape: bodyShape,
+      shoulderHipRatio: shoulderHipRatio,
+      doRecommendations: doRecommendations,
+      dontRecommendations: dontRecommendations,
+      timestamp: timestamp,
+    );
+    
+    await _box.put(id, entry);
+    
+    // Keep only last 20 entries
+    if (_box.length > 20) {
+      final oldestKey = _box.keys.first;
+      await deleteEntry(oldestKey.toString());
+    }
+  }
+  
+  Future<List<HistoryEntry>> getAllHistory() async {
+    final entries = _box.values.toList();
+    entries.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return entries;
+  }
+  
+  Future<void> deleteEntry(String id) async {
+    final entry = _box.get(id);
+    if (entry != null) {
+      final imageFile = File(entry.imagePath);
+      final thumbnailFile = File(entry.thumbnailPath);
+      if (await imageFile.exists()) await imageFile.delete();
+      if (await thumbnailFile.exists()) await thumbnailFile.delete();
+      await _box.delete(id);
+    }
+  }
+  
+  Future<void> clearAllHistory() async {
+    final entries = _box.values.toList();
+    for (var entry in entries) {
+      final imageFile = File(entry.imagePath);
+      final thumbnailFile = File(entry.thumbnailPath);
+      if (await imageFile.exists()) await imageFile.delete();
+      if (await thumbnailFile.exists()) await thumbnailFile.delete();
+    }
+    await _box.clear();
+  }
+  
+  Future<void> _createThumbnail(File originalFile, String outputPath) async {
+    final bytes = await originalFile.readAsBytes();
+    img.Image? originalImage = img.decodeImage(bytes);
+    
+    if (originalImage != null) {
+      final thumbnail = img.copyResize(originalImage, width: 150, height: 150);
+      final thumbnailBytes = img.encodeJpg(thumbnail, quality: 70);
+      await File(outputPath).writeAsBytes(thumbnailBytes);
+    }
+  }
+}
