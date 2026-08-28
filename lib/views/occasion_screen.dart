@@ -71,35 +71,30 @@ class _OccasionScreenState extends State<OccasionScreen> {
       'icon': Icons.style_outlined,
       'color': Colors.pink,
       'description': 'Everyday comfort style',
-      'emoji': '👗',
     },
     {
       'name': 'Party',
       'icon': Icons.celebration_outlined,
       'color': Colors.pink,
       'description': 'Night out and celebrations',
-      'emoji': '🎉',
     },
     {
       'name': 'Office',
       'icon': Icons.work_outline,
       'color': Colors.pink,
       'description': 'Professional work attire',
-      'emoji': '💼',
     },
     {
       'name': 'Wedding',
       'icon': Icons.auto_awesome,
       'color': Colors.pink,
       'description': 'Special day elegance',
-      'emoji': '💍',
     },
     {
       'name': 'Gym',
       'icon': Icons.fitness_center,
       'color': Colors.pink,
       'description': 'Active workout wear',
-      'emoji': '🏋️',
     },
   ];
 
@@ -112,14 +107,14 @@ class _OccasionScreenState extends State<OccasionScreen> {
     'Gym': ['Activewear Set', 'High-Waist Leggings', 'Sports Bra', 'Workout Gear', 'Yoga Wear', 'Sporty Outfit', 'Tank Top', 'Athletic Shorts'],
   };
 
-  // STRICT CLOTHING-ONLY prompts
+  // STRICT CLOTHING-ONLY prompts - shortened versions
   final List<String> _strictPrompts = [
-    'a women\'s clothing item, flat lay on pure white background, product photography, fashion e-commerce, high quality, 4k, isolated',
-    'a fashion garment displayed flat on white surface, product photography, clean white background, fashion catalog, 4k',
-    'a piece of clothing on white background, flat lay, product photography, fashion e-commerce, clean, minimal, high quality',
-    'a fashion item isolated on white background, product shot, clothing photography, 4k, high quality, clean background',
-    'a women\'s garment flat lay on white, product photography, fashion photography, high quality, 4k, white background',
-    'clothing item on pure white background, flat lay, professional product photography, fashion e-commerce, 4k, clean',
+    'clothing item on white background, flat lay, product photography, fashion e-commerce, 4k',
+    'fashion garment on white surface, product photography, clean white background, fashion catalog',
+    'piece of clothing on white background, flat lay, product photography, fashion e-commerce',
+    'fashion item on white background, product shot, clothing photography, 4k, clean background',
+    'garment flat lay on white, product photography, fashion photography, 4k',
+    'clothing item on white background, flat lay, professional product photography, fashion e-commerce, 4k',
   ];
 
   // Helper method to get unique key for occasion + body shape
@@ -128,25 +123,7 @@ class _OccasionScreenState extends State<OccasionScreen> {
   }
 
   // ============================================
-  // CHECK INTERNET CONNECTION
-  // ============================================
-  Future<bool> _checkInternetConnection() async {
-    try {
-      final List<ConnectivityResult> connectivityResult =
-      await _connectivity.checkConnectivity();
-
-      // Check if any connection is available (WiFi or Mobile)
-      return connectivityResult.any(
-              (result) => result == ConnectivityResult.wifi ||
-              result == ConnectivityResult.mobile
-      );
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // ============================================
-  // SHOW OFFLINE DIALOG - Stylish & Branded
+  // SHOW OFFLINE DIALOG
   // ============================================
   void _showOfflineDialog(BuildContext context) {
     showDialog(
@@ -171,7 +148,6 @@ class _OccasionScreenState extends State<OccasionScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Icon with gradient background
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -196,8 +172,6 @@ class _OccasionScreenState extends State<OccasionScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Title
               Text(
                 'No Internet Connection',
                 style: GoogleFonts.playfairDisplay(
@@ -207,8 +181,6 @@ class _OccasionScreenState extends State<OccasionScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-
-              // Description
               Text(
                 'To generate AI outfit images, please connect to Wi-Fi or mobile data and try again.',
                 style: GoogleFonts.inter(
@@ -218,9 +190,7 @@ class _OccasionScreenState extends State<OccasionScreen> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 6),
-
-              // Connection tips
+              const SizedBox(height: 16),
               Container(
                 margin: const EdgeInsets.symmetric(vertical: 12),
                 padding: const EdgeInsets.all(14),
@@ -239,7 +209,7 @@ class _OccasionScreenState extends State<OccasionScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        '💡 Tip: Check your Wi-Fi settings or mobile data, then tap Retry.',
+                        'Check your Wi-Fi settings or mobile data, then tap Retry.',
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           color: Colors.pink.shade700,
@@ -251,8 +221,6 @@ class _OccasionScreenState extends State<OccasionScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Buttons
               Row(
                 children: [
                   Expanded(
@@ -309,49 +277,6 @@ class _OccasionScreenState extends State<OccasionScreen> {
     );
   }
 
-  // ============================================
-  // SHOW LOADING DIALOG (when checking connection)
-  // ============================================
-  void _showCheckingDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(
-                width: 50,
-                height: 50,
-                child: CircularProgressIndicator(
-                  color: Color(0xFFE6186A),
-                  strokeWidth: 3,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Checking connection...',
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFF1A2A4F),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -370,7 +295,7 @@ class _OccasionScreenState extends State<OccasionScreen> {
                     left: 5,
                     top: -50,
                     child: Image.asset(
-                      'assets/logo1.png',  // Changed from 'assets/logo.png' to 'assets/logo1.png'
+                      'assets/logo1.png',
                       height: 170,
                       width: 170,
                       fit: BoxFit.contain,
@@ -1572,7 +1497,7 @@ class _OccasionScreenState extends State<OccasionScreen> {
   }
 
   // ============================================
-  // GENERATE SINGLE AI IMAGE (UPDATED WITH OFFLINE CHECK)
+  // GENERATE SINGLE AI IMAGE
   // ============================================
   void _generateSingleAIImage(
       BuildContext context,
@@ -1581,11 +1506,10 @@ class _OccasionScreenState extends State<OccasionScreen> {
       ScrollController scrollController
       ) async {
 
-    // First, check internet connection
-    final bool hasConnection = await _checkInternetConnection();
+    // Check internet connection
+    final bool hasConnection = await _pollinationsService.hasInternetConnection();
 
     if (!hasConnection) {
-      // Show offline dialog
       _showOfflineDialog(context);
       return;
     }
@@ -1623,9 +1547,9 @@ class _OccasionScreenState extends State<OccasionScreen> {
     final randomIndex = DateTime.now().millisecondsSinceEpoch % _strictPrompts.length;
     final basePrompt = _strictPrompts[randomIndex];
 
-    final styles = ['chic', 'elegant', 'trendy', 'classic', 'modern', 'stylish', 'fashionable', 'sophisticated'];
-    final colors = ['neutral', 'pastel', 'bold', 'monochrome', 'earth tone', 'jewel tone', 'warm', 'cool'];
-    final fabrics = ['cotton', 'silk', 'linen', 'wool', 'denim', 'lace', 'knit', 'satin'];
+    final styles = ['chic', 'elegant', 'trendy', 'classic', 'modern', 'stylish'];
+    final colors = ['neutral', 'pastel', 'bold', 'monochrome', 'earth tone'];
+    final fabrics = ['cotton', 'silk', 'linen', 'wool', 'denim'];
 
     final style = styles[DateTime.now().millisecondsSinceEpoch % styles.length];
     final color = colors[DateTime.now().millisecondsSinceEpoch % colors.length];
@@ -1633,7 +1557,7 @@ class _OccasionScreenState extends State<OccasionScreen> {
 
     final shapeName = _getDisplayName(bodyShape);
 
-    return '$style $color $fabric $clothingName for $shapeName body shape, $basePrompt, no person, no model, no mannequin, no dummy, no body, just the clothing item, flat lay, product only';
+    return '$style $color $fabric $clothingName for $shapeName body shape, $basePrompt';
   }
 
   Future<void> _generateAndAddImage(
@@ -1675,7 +1599,7 @@ class _OccasionScreenState extends State<OccasionScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ $clothingName generated!'),
+            content: Text('$clothingName generated!'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -1686,19 +1610,31 @@ class _OccasionScreenState extends State<OccasionScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('❌ Failed to generate. Please try again.'),
+            content: Text('Failed to generate. Please try again.'),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
+      final errorMsg = e.toString();
+
+      // Check if it's a no internet error
+      if (errorMsg.contains('NO_INTERNET')) {
+        setState(() {
+          _isGenerating[storageKey] = false;
+        });
+        _showOfflineDialog(context);
+        return;
+      }
+
       setState(() {
         _isGenerating[storageKey] = false;
       });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: $e'),
+          content: Text('Failed: ${errorMsg.replaceFirst('Exception: ', '')}'),
           backgroundColor: Colors.red,
           duration: const Duration(seconds: 3),
         ),
