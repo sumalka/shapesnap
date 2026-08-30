@@ -17,10 +17,10 @@ class TfliteService {
       final labelString = await _loadLabels();
       _labels = labelString.split('\n').where((l) => l.isNotEmpty).toList();
 
-      print('✅ Model loaded successfully!');
-      print('📊 Labels: $_labels');
+      print('Model loaded successfully!');
+      print('Labels: $_labels');
     } catch (e) {
-      print('❌ Error loading model: $e');
+      print('Error loading model: $e');
       throw Exception('Failed to load model: $e');
     }
   }
@@ -29,7 +29,6 @@ class TfliteService {
     if (_interpreter == null) {
       throw Exception('Model not loaded. Call loadModel() first.');
     }
-
     // 1. Load and preprocess image
     final imageBytes = await imageFile.readAsBytes();
     final image = img.decodeImage(imageBytes);
@@ -37,31 +36,26 @@ class TfliteService {
     if (image == null) {
       throw Exception('Failed to decode image');
     }
-
     // VGG16 uses 224x224 input
     final resized = img.copyResize(image, width: 224, height: 224);
-
     // For float model: use float input (normalized 0-1)
     final input = _imageToFloatList(resized, 224, 224);
-
     // 2. Run inference
     final output = List.filled(1 * 5, 0.0).reshape([1, 5]);
     _interpreter!.run(input, output);
-
     // 3. Get prediction
     final predictions = output[0] as List<double>;
     final maxIndex = predictions.indexOf(predictions.reduce((a, b) => a > b ? a : b));
     final confidence = predictions[maxIndex];
     _lastConfidence = confidence;
 
-    print('📊 Predictions: $predictions');
-    print('✅ Predicted class: ${_labels![maxIndex]} with confidence: ${(confidence * 100).toStringAsFixed(1)}%');
+    print('Predictions: $predictions');
+    print('Predicted class: ${_labels![maxIndex]} with confidence: ${(confidence * 100).toStringAsFixed(1)}%');
 
     // Only return result if confidence is above 50%
     if (confidence < 0.50) {
       throw Exception('Confidence too low (${(confidence * 100).toStringAsFixed(1)}%). Please take a better photo.');
     }
-
     return _labels![maxIndex];
   }
 
@@ -75,37 +69,34 @@ class TfliteService {
         final result = await classifyImage(imageFile);
         results.add(result);
         confidences.add(_lastConfidence ?? 0.0);
-        print('📊 Attempt ${i+1}: $result (${((_lastConfidence ?? 0) * 100).toStringAsFixed(1)}%)');
+        print('Attempt ${i+1}: $result (${((_lastConfidence ?? 0) * 100).toStringAsFixed(1)}%)');
       } catch (e) {
-        print('⚠️ Attempt ${i+1} failed: $e');
+        print('Attempt ${i+1} failed: $e');
       }
     }
 
     if (results.isEmpty) {
       throw Exception('Could not get a consistent prediction');
     }
-
     // Find the most common prediction
     var counts = <String, int>{};
     for (var item in results) {
       counts[item] = (counts[item] ?? 0) + 1;
     }
-
     // Get the most frequent prediction
     String bestResult = counts.keys.firstWhere(
           (k) => counts[k] == counts.values.reduce((a, b) => a > b ? a : b),
     );
 
     int maxCount = counts[bestResult] ?? 0;
-
     // If no clear majority (1,1,1), use the one with highest confidence
     if (maxCount == 1) {
-      print('⚠️ No clear majority, using highest confidence result');
+      print('No clear majority, using highest confidence result');
       int bestIndex = confidences.indexOf(confidences.reduce((a, b) => a > b ? a : b));
       return results[bestIndex];
     }
 
-    print('✅ Consistent prediction: $bestResult ($maxCount/$attempts attempts)');
+    print('Consistent prediction: $bestResult ($maxCount/$attempts attempts)');
     return bestResult;
   }
 

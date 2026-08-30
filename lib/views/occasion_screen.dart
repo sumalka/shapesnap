@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/body_shape.dart';
 import '../services/occasion_image_service.dart';
 import '../services/pollinations_service.dart';
@@ -122,97 +124,146 @@ class _OccasionScreenState extends State<OccasionScreen> {
     return '${occasion}_${bodyShape.toString().split('.').last}';
   }
 
+
+  // SIMPLE RELIABLE OFFLINE CHECK
+
+  Future<bool> _checkInternet() async {
+    try {
+      final List<ConnectivityResult> result = await _connectivity.checkConnectivity();
+      return result.any(
+            (r) => r == ConnectivityResult.wifi || r == ConnectivityResult.mobile,
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
   // ============================================
-  // SHOW OFFLINE DIALOG
+  // OPEN INTERNET SETTINGS
   // ============================================
-  void _showOfflineDialog(BuildContext context) {
+  Future<void> _openInternetSettings() async {
+    try {
+      if (Platform.isAndroid) {
+        // Android - opens WiFi settings
+        const androidSettingsUrl = 'android.settings.WIFI_SETTINGS';
+        if (await canLaunchUrl(Uri.parse(androidSettingsUrl))) {
+          await launchUrl(Uri.parse(androidSettingsUrl));
+        } else {
+          // Fallback: open general settings
+          const fallbackUrl = 'android.settings.SETTINGS';
+          if (await canLaunchUrl(Uri.parse(fallbackUrl))) {
+            await launchUrl(Uri.parse(fallbackUrl));
+          }
+        }
+      } else if (Platform.isIOS) {
+        // iOS - opens settings app
+        const iosSettingsUrl = 'app-settings:';
+        if (await canLaunchUrl(Uri.parse(iosSettingsUrl))) {
+          await launchUrl(Uri.parse(iosSettingsUrl));
+        }
+      } else {
+        // Web or other platforms - show a message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please connect to the internet manually.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      // If we can't open settings, just show a message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please connect to the internet manually: ${e.toString()}'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  // INTERNET CONNECTION STATUS DIALOG
+
+  void _showInternetStatusDialog(bool isConnected, BuildContext context, String occasion, StateSetter setState, ScrollController scrollController) {
     showDialog(
       context: context,
-      barrierDismissible: true,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 30,
-                offset: const Offset(0, 10),
-              ),
-            ],
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          backgroundColor: Colors.white,
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+          contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.pink.shade300, Colors.pink.shade600],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  color: isConnected ? Colors.green.shade100 : Colors.pink.shade100,
                   shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.pink.withOpacity(0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
                 ),
-                child: const Icon(
-                  Icons.wifi_off,
-                  color: Colors.white,
+                child: Icon(
+                  isConnected ? Icons.wifi : Icons.wifi_off,
+                  color: isConnected ? Colors.green.shade700 : Colors.pink.shade700,
                   size: 40,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               Text(
-                'No Internet Connection',
-                style: GoogleFonts.playfairDisplay(
-                  fontSize: 22,
+                isConnected ? 'Internet Connected' : 'No Internet Connection',
+                style: GoogleFonts.inter(
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: const Color(0xFF1A2A4F),
                 ),
+                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 8),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                'To generate AI outfit images, please connect to Wi-Fi or mobile data and try again.',
+                isConnected
+                    ? 'You are connected to the internet. Ready to generate stunning AI outfit images!'
+                    : 'To generate AI outfit images, you need an active internet connection.',
                 style: GoogleFonts.inter(
                   fontSize: 14,
-                  color: Colors.grey.shade600,
+                  color: Colors.grey.shade700,
                   height: 1.5,
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
               Container(
-                margin: const EdgeInsets.symmetric(vertical: 12),
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.pink.shade50,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.pink.shade200),
+                  color: isConnected ? Colors.green.shade50 : Colors.pink.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: isConnected ? Colors.green.shade200 : Colors.pink.shade200),
                 ),
                 child: Row(
                   children: [
                     Icon(
-                      Icons.lightbulb_outline,
-                      color: Colors.pink.shade400,
+                      isConnected ? Icons.check_circle_outline : Icons.lightbulb_outline,
+                      color: isConnected ? Colors.green.shade400 : Colors.pink.shade400,
                       size: 18,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Check your Wi-Fi settings or mobile data, then tap Retry.',
+                        isConnected
+                            ? 'AI generation will start in a moment. Please wait...'
+                            : 'Tap "Connect to Internet" to open your phone\'s settings.',
                         style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: Colors.pink.shade700,
+                          fontSize: 13,
+                          color: isConnected ? Colors.green.shade700 : Colors.pink.shade700,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -220,61 +271,129 @@ class _OccasionScreenState extends State<OccasionScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey.shade600,
-                        side: BorderSide(color: Colors.grey.shade300),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: Text(
-                        'Cancel',
-                        style: GoogleFonts.inter(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFE6186A),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        elevation: 2,
-                        shadowColor: Colors.pink.withOpacity(0.3),
-                      ),
-                      child: Text(
-                        'Retry',
-                        style: GoogleFonts.inter(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
-        ),
-      ),
+          actions: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey.shade600,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    side: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  child: Text(
+                    isConnected ? 'Cancel' : 'Cancel',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: isConnected
+                      ? () {
+                    Navigator.pop(context);
+                    // Proceed with generation
+                    _startGeneration(context, occasion, setState, scrollController);
+                  }
+                      : () {
+                    // Close dialog and open internet settings
+                    Navigator.pop(context);
+                    _openInternetSettings();
+                    // Show a snackbar informing user
+                    Future.delayed(const Duration(milliseconds: 500), () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Opening internet settings... Please connect and try again.'),
+                          backgroundColor: Colors.blue,
+                          duration: Duration(seconds: 3),
+                        ),
+                      );
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isConnected ? const Color(0xFFE6186A) : Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 2,
+                  ),
+                  child: Text(
+                    isConnected ? 'Generate Now' : 'Connect to Internet',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  // ============================================
+  // START GENERATION AFTER INTERNET CHECK
+  // ============================================
+  Future<void> _startGeneration(
+      BuildContext context,
+      String occasion,
+      StateSetter setState,
+      ScrollController scrollController
+      ) async {
+    final storageKey = _getStorageKey(occasion, _selectedBodyShape);
+
+    setState(() {
+      _isGenerating[storageKey] = true;
+    });
+
+    // Scroll to bottom to show progress
+    Future.delayed(const Duration(milliseconds: 150), () {
+      if (scrollController.hasClients) {
+        scrollController.animateTo(
+          scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+
+    final clothingName = _getRandomClothingName(occasion);
+    final prompt = _generateStrictPrompt(occasion, clothingName, _selectedBodyShape);
+
+    await _generateAndAddImage(context, occasion, storageKey, prompt, clothingName, setState, scrollController);
+  }
+
+  // ============================================
+  // GENERATE AI IMAGE - WITH INTERNET CHECK
+  // ============================================
+  Future<void> _generateSingleAIImage(
+      BuildContext context,
+      String occasion,
+      StateSetter setState,
+      ScrollController scrollController
+      ) async {
+
+    // STEP 1: Check internet connection FIRST
+    final bool hasConnection = await _checkInternet();
+
+    // STEP 2: Show status dialog based on connection
+    _showInternetStatusDialog(hasConnection, context, occasion, setState, scrollController);
   }
 
   @override
@@ -860,6 +979,7 @@ class _OccasionScreenState extends State<OccasionScreen> {
                           ),
                           ElevatedButton.icon(
                             onPressed: isGenerating ? null : () {
+                              // Check internet and show status dialog
                               _generateSingleAIImage(context, occasion, setState, scrollController);
                             },
                             icon: isGenerating
@@ -1496,47 +1616,6 @@ class _OccasionScreenState extends State<OccasionScreen> {
     );
   }
 
-  // ============================================
-  // GENERATE SINGLE AI IMAGE
-  // ============================================
-  void _generateSingleAIImage(
-      BuildContext context,
-      String occasion,
-      StateSetter setState,
-      ScrollController scrollController
-      ) async {
-
-    // Check internet connection
-    final bool hasConnection = await _pollinationsService.hasInternetConnection();
-
-    if (!hasConnection) {
-      _showOfflineDialog(context);
-      return;
-    }
-
-    final storageKey = _getStorageKey(occasion, _selectedBodyShape);
-
-    setState(() {
-      _isGenerating[storageKey] = true;
-    });
-
-    // Scroll to bottom to show progress
-    Future.delayed(const Duration(milliseconds: 150), () {
-      if (scrollController.hasClients) {
-        scrollController.animateTo(
-          scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 800),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-
-    final clothingName = _getRandomClothingName(occasion);
-    final prompt = _generateStrictPrompt(occasion, clothingName, _selectedBodyShape);
-
-    await _generateAndAddImage(context, occasion, storageKey, prompt, clothingName, setState, scrollController);
-  }
-
   String _getRandomClothingName(String occasion) {
     final names = _clothingNames[occasion] ?? ['Stylish Outfit'];
     final randomIndex = DateTime.now().millisecondsSinceEpoch % names.length;
@@ -1617,24 +1696,13 @@ class _OccasionScreenState extends State<OccasionScreen> {
         );
       }
     } catch (e) {
-      final errorMsg = e.toString();
-
-      // Check if it's a no internet error
-      if (errorMsg.contains('NO_INTERNET')) {
-        setState(() {
-          _isGenerating[storageKey] = false;
-        });
-        _showOfflineDialog(context);
-        return;
-      }
-
       setState(() {
         _isGenerating[storageKey] = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed: ${errorMsg.replaceFirst('Exception: ', '')}'),
+          content: Text('Failed: ${e.toString().replaceFirst('Exception: ', '')}'),
           backgroundColor: Colors.red,
           duration: const Duration(seconds: 3),
         ),

@@ -68,9 +68,9 @@ class OccasionImageService {
     ];
   }
 
-  // ============================================
+
   // HOURGLASS RECOMMENDATIONS
-  // ============================================
+
   List<String> _getHourglassRecommendations(String occasion) {
     switch (occasion) {
       case 'Casual':
@@ -88,9 +88,9 @@ class OccasionImageService {
     }
   }
 
-  // ============================================
+
   // PEAR RECOMMENDATIONS
-  // ============================================
+
   List<String> _getPearRecommendations(String occasion) {
     switch (occasion) {
       case 'Casual':
@@ -108,9 +108,9 @@ class OccasionImageService {
     }
   }
 
-  // ============================================
+
   // RECTANGLE RECOMMENDATIONS
-  // ============================================
+
   List<String> _getRectangleRecommendations(String occasion) {
     switch (occasion) {
       case 'Casual':
@@ -128,9 +128,9 @@ class OccasionImageService {
     }
   }
 
-  // ============================================
+
   // INVERTED TRIANGLE RECOMMENDATIONS
-  // ============================================
+
   List<String> _getInvertedTriangleRecommendations(String occasion) {
     switch (occasion) {
       case 'Casual':
@@ -148,9 +148,9 @@ class OccasionImageService {
     }
   }
 
-  // ============================================
+
   // APPLE RECOMMENDATIONS (was Round)
-  // ============================================
+
   List<String> _getAppleRecommendations(String occasion) {
     switch (occasion) {
       case 'Casual':

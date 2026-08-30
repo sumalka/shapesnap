@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'processing_screen.dart';
+import 'camera_screen.dart';
 
 class PreviewScreen extends StatelessWidget {
   final File imageFile;
@@ -26,7 +27,7 @@ class PreviewScreen extends StatelessWidget {
                     left: 5,
                     top: -50,
                     child: Image.asset(
-                      'assets/logo1.png',  // Changed from 'assets/logo.png' to 'assets/logo1.png'
+                      'assets/logo1.png',
                       height: 170,
                       width: 170,
                       fit: BoxFit.contain,
@@ -79,13 +80,44 @@ class PreviewScreen extends StatelessWidget {
                             offset: const Offset(0, 5),
                           ),
                         ],
-                        image: DecorationImage(
-                          image: FileImage(imageFile),
-                          fit: BoxFit.contain,
-                        ),
                         border: Border.all(
                           color: Colors.pink.shade100,
                           width: 2,
+                        ),
+                        color: Colors.black,
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: Image.file(
+                          imageFile,
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                          height: double.infinity,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey.shade100,
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.broken_image,
+                                      size: 60,
+                                      color: Colors.pink.shade300,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Image not available',
+                                      style: GoogleFonts.inter(
+                                        color: Colors.pink.shade400,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -126,7 +158,7 @@ class PreviewScreen extends StatelessWidget {
                             ),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Icon(
+                          child: const Icon(
                             Icons.lightbulb_outline,
                             color: Colors.white,
                             size: 22,
@@ -138,7 +170,7 @@ class PreviewScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '💡 Tips for Best Results',
+                                'Tips for Best Results',
                                 style: GoogleFonts.inter(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
@@ -167,11 +199,17 @@ class PreviewScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Row(
                       children: [
-                        // Retake Button
+                        // Retake Button - FIXED: Removed const keyword
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () {
-                              Navigator.pop(context);
+                              // Navigate back to camera screen using pushReplacement
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => CameraScreen(), // Removed const
+                                ),
+                              );
                             },
                             icon: Icon(Icons.close, size: 22, color: Colors.pink.shade400),
                             label: Text(

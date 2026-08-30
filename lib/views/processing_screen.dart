@@ -5,6 +5,7 @@ import '../services/tflite_service.dart';
 import '../services/recommendation_service.dart';
 import '../models/body_shape.dart';
 import 'result_screen.dart';
+import 'camera_screen.dart';
 
 class ProcessingScreen extends StatefulWidget {
   final File? imageFile;
@@ -23,46 +24,58 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
   bool _isProcessing = false;
   bool _isComplete = false;
   String _confidenceMessage = '';
+  bool _isDisposed = false;
 
   @override
   void initState() {
     super.initState();
-    print('🟢 ProcessingScreen loaded - starting processing');
+    print('ProcessingScreen loaded - starting processing');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _processImage();
     });
   }
 
+  @override
+  void dispose() {
+    _isDisposed = true;
+    try {
+      _tfliteService.dispose();
+    } catch (e) {
+      print('Error during dispose: $e');
+    }
+    super.dispose();
+  }
+
   Future<void> _processImage() async {
-    if (_isProcessing) return;
+    if (_isProcessing || _isDisposed) return;
     _isProcessing = true;
 
-    print('🟡 Starting image processing with custom CNN model...');
+    print('Starting image processing with custom CNN model...');
 
     try {
       // Step 1: Load the TFLite model
-      if (mounted) {
+      if (mounted && !_isDisposed) {
         setState(() {
           _statusMessage = "Loading AI model...";
         });
       }
 
       await _tfliteService.loadModel();
-      print('✅ Step 1: Custom CNN model loaded successfully');
+      print('Step 1: Custom CNN model loaded successfully');
 
       await Future.delayed(const Duration(milliseconds: 300));
 
       // Step 2: Check if image exists
       if (widget.imageFile == null) {
-        print('⚠️ No image file provided');
-        if (mounted) {
+        print('No image file provided');
+        if (mounted && !_isDisposed) {
           _showError('No image selected. Please try again.');
         }
         return;
       }
 
       // Step 3: Get consistent prediction (3 tries)
-      if (mounted) {
+      if (mounted && !_isDisposed) {
         setState(() {
           _statusMessage = "Analyzing your body shape (3 attempts)...";
         });
@@ -72,7 +85,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
         widget.imageFile!,
         attempts: 3,
       );
-      print('✅ Step 2: Consistent prediction: $predictedLabel');
+      print('Step 2: Consistent prediction: $predictedLabel');
 
       // Get confidence
       final confidence = _tfliteService.lastConfidence ?? 0.0;
@@ -82,7 +95,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
       final bodyShape = _mapToBodyShape(predictedLabel);
 
       // Step 5: Get recommendations
-      if (mounted) {
+      if (mounted && !_isDisposed) {
         setState(() {
           _statusMessage = "Getting style recommendations...";
         });
@@ -94,7 +107,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
 
       await Future.delayed(const Duration(milliseconds: 300));
 
-      if (mounted) {
+      if (mounted && !_isDisposed) {
         setState(() {
           _statusMessage = "Analysis Complete!";
           _isComplete = true;
@@ -104,8 +117,15 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
       await Future.delayed(const Duration(milliseconds: 500));
 
       // Step 6: Navigate to result screen
-      if (mounted) {
+      if (mounted && !_isDisposed) {
         print('🔵 Navigating to ResultScreen with shape: ${bodyShape.displayName}');
+
+        try {
+          _tfliteService.dispose();
+        } catch (e) {
+          print('Error disposing service: $e');
+        }
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -125,12 +145,11 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
       }
 
     } catch (e) {
-      print('❌ Processing error: $e');
-      if (mounted) {
-        _showError('Analysis failed: $e\n\nPlease try again with a better photo.');
+      print('Processing error: $e');
+      if (mounted && !_isDisposed) {
+        _showError('Could not detect your body shape. Please try again with a better photo.');
       }
     } finally {
-      _tfliteService.dispose();
       _isProcessing = false;
     }
   }
@@ -148,35 +167,132 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
       case 'rectangle':
         return BodyShape.rectangle;
       default:
-        print('⚠️ Unknown label: $label, defaulting to Rectangle');
+        print('Unknown label: $label, defaulting to Rectangle');
         return BodyShape.rectangle;
     }
   }
 
+
+  // iOS-STYLE ERROR DIALOG - NO ICON
+
   void _showError(String message) {
+    if (_isDisposed || !mounted) return;
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Analysis Failed'),
-        content: Text(message),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        backgroundColor: Colors.white,
+        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+        contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+        title: Text(
+          'Analysis Failed',
+          style: GoogleFonts.inter(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Could not detect your body shape.\nPlease try again with a better photo.',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: Colors.grey.shade700,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Tips section
+            Text(
+              'Tips for better results:',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF1A2A4F),
+              ),
+            ),
+            const SizedBox(height: 10),
+            _buildTipItem('Stand facing the camera directly'),
+            _buildTipItem('Wear fitted clothing'),
+            _buildTipItem('Ensure good lighting'),
+            _buildTipItem('Keep a neutral posture'),
+          ],
+        ),
         actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text('Try Again'),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                try {
+                  _tfliteService.dispose();
+                } catch (e) {
+                  print('Error disposing service: $e');
+                }
+                Navigator.of(context).pop();
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (context) => const CameraScreen(),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE6186A),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                'Try Again',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  @override
-  void dispose() {
-    _tfliteService.dispose();
-    super.dispose();
+  Widget _buildTipItem(String tip) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '• ',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Colors.pink.shade600,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              tip,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

@@ -220,7 +220,7 @@ class HistoryDetailScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  '✨ Style Tip',
+                                  'Style Tip',
                                   style: GoogleFonts.inter(
                                     fontSize: 13,
                                     fontWeight: FontWeight.bold,
@@ -252,7 +252,7 @@ class HistoryDetailScreen extends StatelessWidget {
                       recommendations: entry.doRecommendations,
                       color: Colors.green,
                       icon: Icons.check_circle,
-                      emoji: '✅',
+                      emoji: '',
                     ),
                     const SizedBox(height: 20),
 
@@ -262,7 +262,7 @@ class HistoryDetailScreen extends StatelessWidget {
                       recommendations: entry.dontRecommendations,
                       color: Colors.red,
                       icon: Icons.cancel,
-                      emoji: '❌',
+                      emoji: '',
                     ),
                     const SizedBox(height: 24),
                   ],

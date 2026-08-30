@@ -55,9 +55,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           setState(() {
             _userData = data;
           });
-          print('✅ User data loaded from Firestore: $_userData');
+          print('User data loaded from Firestore: $_userData');
         } else {
-          print('⚠️ No user document found in Firestore');
+          print('No user document found in Firestore');
           await _createUserDocument(user);
         }
       }
@@ -153,7 +153,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Profile picture saved!'),
+            content: Text('Profile picture saved!'),
             backgroundColor: Colors.pink,
           ),
         );
@@ -280,9 +280,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ============================================
+
   // FIXED: Format Date - Handles Firestore Timestamps
-  // ============================================
+
   String _formatDate(dynamic dateValue) {
     if (dateValue == null) return 'Not set';
 
@@ -360,29 +360,153 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return user?.displayName ?? 'No name set';
   }
 
+  // SIGN OUT DIALOG - Without "Account" label
+
   Future<void> _signOut() async {
-    final confirm = await showDialog<bool>(
+    final result = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sign Out'),
-        content: const Text('Are you sure you want to sign out?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      barrierDismissible: true,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sign Out', style: TextStyle(color: Colors.pink)),
+          backgroundColor: Colors.white,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Sign Out text
+                Text(
+                  'Sign Out?',
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1A2A4F),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Description
+                Text(
+                  'On proceeding, you will be signed out\nof the app.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Divider
+                Divider(
+                  color: Colors.grey.shade200,
+                  thickness: 1,
+                ),
+                const SizedBox(height: 16),
+                // Action Buttons - CANCEL | SIGN OUT
+                Row(
+                  children: [
+                    // Cancel Button - Outlined style
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.pop(context, false);
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.grey.shade700,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          side: BorderSide(
+                            color: Colors.grey.shade300,
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          'CANCEL',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Sign Out Button - Primary
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context, true);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFE6186A),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          'SIGN OUT',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
 
-    if (confirm == true) {
+    // If user confirmed, proceed with sign out
+    if (result == true) {
+      setState(() {
+        _isLoading = true;
+      });
+
       try {
         await _auth.signOut();
+
         if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Signed out successfully',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => const SignInScreen()),
@@ -390,11 +514,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         }
       } catch (e) {
+        setState(() {
+          _isLoading = false;
+        });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error signing out: $e'),
-              backgroundColor: Colors.pink,
+              content: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Error signing out',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
             ),
           );
         }
@@ -508,7 +653,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       left: 5,
                       top: -50,
                       child: Image.asset(
-                        'assets/logo1.png',  // Changed from 'assets/logo.png' to 'assets/logo1.png'
+                        'assets/logo1.png',
                         height: 170,
                         width: 170,
                         fit: BoxFit.contain,
@@ -530,7 +675,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: GoogleFonts.inter(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.pink, // Changed to pink
+                          color: Colors.pink,
                         ),
                       ),
                     ),
@@ -642,9 +787,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   Text(
                     name,
-                    style: GoogleFonts.playfairDisplay(
+                    style: GoogleFonts.inter(
                       fontSize: 22,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
                       color: const Color(0xFF1A2A4F),
                     ),
                     textAlign: TextAlign.center,
@@ -692,10 +837,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // Sign Out Button
               SizedBox(
                 width: double.infinity,
-                height: 50,
+                height: 54,
                 child: ElevatedButton.icon(
                   onPressed: _signOut,
-                  icon: const Icon(Icons.logout, color: Colors.white),
+                  icon: Icon(
+                    Icons.logout_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                   label: Text(
                     'Sign Out',
                     style: GoogleFonts.inter(
@@ -705,15 +854,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.pink,
+                    backgroundColor: const Color(0xFFE6186A),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
                     ),
+                    elevation: 0,
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+
+              const SizedBox(height: 20),
             ],
           ),
         ),

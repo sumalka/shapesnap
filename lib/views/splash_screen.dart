@@ -36,9 +36,9 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       await _audioPlayer.play(AssetSource('sounds/sparkle.mp3'));
       await _audioPlayer.setVolume(1.0);
-      print('✅ Sparkle sound playing!');
+      print('Sparkle sound playing!');
     } catch (e) {
-      print('❌ Sound error: $e');
+      print('Sound error: $e');
     }
   }
 

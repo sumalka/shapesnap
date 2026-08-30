@@ -69,10 +69,10 @@ class _ResultScreenState extends State<ResultScreen> {
       for (var path in doImages) {
         try {
           final data = await rootBundle.load(path);
-          print('✅ DO image found: $path (${data.lengthInBytes} bytes)');
+          print('DO image found: $path (${data.lengthInBytes} bytes)');
           validDoImages.add(path);
         } catch (e) {
-          print('❌ DO image NOT found: $path');
+          print('DO image NOT found: $path');
         }
       }
 
@@ -80,10 +80,10 @@ class _ResultScreenState extends State<ResultScreen> {
       for (var path in dontImages) {
         try {
           final data = await rootBundle.load(path);
-          print('✅ DON\'T image found: $path (${data.lengthInBytes} bytes)');
+          print('DON\'T image found: $path (${data.lengthInBytes} bytes)');
           validDontImages.add(path);
         } catch (e) {
-          print('❌ DON\'T image NOT found: $path');
+          print('DON\'T image NOT found: $path');
         }
       }
 
@@ -1001,7 +1001,7 @@ class _ResultScreenState extends State<ResultScreen> {
                 const Icon(Icons.check_circle, color: Colors.white, size: 20),
                 const SizedBox(width: 10),
                 Text(
-                  '✅ ${widget.bodyShape.displayName} saved to history!',
+                  '${widget.bodyShape.displayName} saved to history!',
                   style: GoogleFonts.inter(fontWeight: FontWeight.w500),
                 ),
               ],

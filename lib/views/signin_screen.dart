@@ -1,7 +1,10 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'home_screen.dart';
 
 class SignInScreen extends StatefulWidget {
@@ -28,6 +31,8 @@ class _SignInScreenState extends State<SignInScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _showPasswordSetup = false;
+  bool _isPermissionDialogShowing = false;
+  bool _showProfileForm = false;
 
   // Password validation states
   bool _hasMinLength = false;
@@ -64,6 +69,7 @@ class _SignInScreenState extends State<SignInScreen> {
       _isEmailVerified = false;
       _isEmailSent = false;
       _showPasswordSetup = false;
+      _showProfileForm = false;
       _selectedDate = null;
       _nameController.clear();
       _emailController.clear();
@@ -95,9 +101,421 @@ class _SignInScreenState extends State<SignInScreen> {
     });
   }
 
-  // ============================================
+  // PERMISSION DIALOG - CENTERED BUTTONS
+
+  Future<bool> _showPermissionDialog() async {
+    Completer<bool> completer = Completer<bool>();
+
+    setState(() {
+      _isPermissionDialogShowing = true;
+    });
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          backgroundColor: Colors.white,
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+          contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          title: Text(
+            '"ShapeSnap" Would Like to Access Camera & Gallery',
+            style: GoogleFonts.inter(
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'This app uses:',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: Colors.grey.shade700,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Camera item
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.camera_alt,
+                      color: const Color(0xFFE6186A),
+                      size: 22,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        'Camera to scan your body shape',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Gallery item
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.photo_library,
+                      color: const Color(0xFFE6186A),
+                      size: 22,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        'Gallery to upload photos',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Info box
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.grey.shade600,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'These permissions are required for the app to function properly.',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            // CENTERED BUTTONS
+            Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Don't Allow button
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      setState(() {
+                        _isPermissionDialogShowing = false;
+                      });
+                      completer.complete(false);
+                      _showSnackBar(
+                        'Camera & Gallery access is required to continue. You can grant it later from settings.',
+                        backgroundColor: Colors.orange,
+                      );
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFE6186A),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      "Don't Allow",
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFFE6186A),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // OK button
+                  TextButton(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      setState(() {
+                        _isPermissionDialogShowing = false;
+                      });
+                      // Request system permissions
+                      bool granted = await _requestSystemPermissions();
+                      completer.complete(granted);
+
+                      if (!granted && mounted) {
+                        _showPermissionDeniedDialog();
+                      }
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: const Color(0xFFE6186A),
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      'OK',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    return await completer.future;
+  }
+
+
+  // PERMISSION DENIED DIALOG - KEEP ASKING
+
+  void _showPermissionDeniedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          backgroundColor: Colors.white,
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+          contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          title: Text(
+            'Permissions Required',
+            style: GoogleFonts.inter(
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              color: Colors.red.shade700,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Camera & Gallery access is essential for ShapeSnap to work. Please grant both permissions to continue using the app.',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: Colors.grey.shade700,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.settings,
+                      color: Colors.grey.shade600,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'You can enable permissions in Settings > Apps > ShapeSnap > Permissions',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _showSnackBar(
+                        'Camera & Gallery permissions are required to use the app.',
+                        backgroundColor: Colors.orange,
+                      );
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFE6186A),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      "Cancel",
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFFE6186A),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  TextButton(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      bool granted = await _requestSystemPermissions();
+                      if (granted) {
+                        if (mounted) {
+                          _showSnackBar(
+                            ' Camera & Gallery access granted!',
+                            backgroundColor: Colors.green,
+                          );
+                          if (mounted) {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(builder: (context) => const HomeScreen()),
+                            );
+                          }
+                        }
+                      } else {
+                        if (mounted) {
+                          _showPermissionDeniedDialog();
+                        }
+                      }
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: const Color(0xFFE6186A),
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      'Grant Permissions',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
+  // REQUEST SYSTEM PERMISSIONS
+
+  Future<bool> _requestSystemPermissions() async {
+    try {
+      PermissionStatus cameraStatus = await Permission.camera.status;
+
+      if (!cameraStatus.isGranted) {
+        cameraStatus = await Permission.camera.request();
+      }
+      print(' Camera permission result: $cameraStatus');
+
+      PermissionStatus storageStatus;
+      if (Platform.isAndroid) {
+        if (await _isAndroid13OrHigher()) {
+          storageStatus = await Permission.photos.status;
+          if (!storageStatus.isGranted) {
+            storageStatus = await Permission.photos.request();
+          }
+        } else {
+          storageStatus = await Permission.storage.status;
+          if (!storageStatus.isGranted) {
+            storageStatus = await Permission.storage.request();
+          }
+        }
+      } else {
+        storageStatus = await Permission.photos.status;
+        if (!storageStatus.isGranted) {
+          storageStatus = await Permission.photos.request();
+        }
+      }
+      print('Gallery/Storage permission result: $storageStatus');
+
+      return cameraStatus.isGranted && storageStatus.isGranted;
+
+    } catch (e) {
+      print('Permission request error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _isAndroid13OrHigher() async {
+    if (Platform.isAndroid) {
+      try {
+        final photosStatus = await Permission.photos.status;
+        return photosStatus != PermissionStatus.denied ||
+            photosStatus == PermissionStatus.granted ||
+            photosStatus == PermissionStatus.limited;
+      } catch (e) {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  // CHECK PERMISSION - SHOW DIALOG WITH CANCEL
+
+  Future<bool> _checkPermissionAndProceed() async {
+    bool userClickedOK = await _showPermissionDialog();
+
+    if (userClickedOK) {
+      return true;
+    } else {
+      // User clicked "Don't Allow" - stay on profile form, keep data
+      return false;
+    }
+  }
+
+
   // PASSWORD VALIDATION METHODS
-  // ============================================
+
   void _validatePassword(String value) {
     setState(() {
       _hasMinLength = value.length >= 6;
@@ -119,15 +537,47 @@ class _SignInScreenState extends State<SignInScreen> {
     return _hasMinLength && _hasLetter && _hasNumber && _passwordsMatch;
   }
 
-  // ============================================
+
+  // SHOW CUSTOM SNACKBAR
+
+  void _showSnackBar(String message, {Color backgroundColor = Colors.pink}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        backgroundColor: backgroundColor,
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+
   // STEP 1: SEND VERIFICATION EMAIL
-  // ============================================
+
   Future<void> _sendVerificationEmail() async {
     String email = _emailController.text.trim();
 
-    if (email.isEmpty || !email.contains('@')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid email address')),
+    if (email.isEmpty) {
+      _showSnackBar(
+        'Please enter your email address',
+        backgroundColor: Colors.orange,
+      );
+      return;
+    }
+
+    if (!email.contains('@') || !email.contains('.')) {
+      _showSnackBar(
+        'Please enter a valid email address',
+        backgroundColor: Colors.orange,
       );
       return;
     }
@@ -153,43 +603,44 @@ class _SignInScreenState extends State<SignInScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Verification email sent! Please check your inbox.'),
-          backgroundColor: Color(0xFFE6186A),
-          duration: Duration(seconds: 5),
-        ),
+      _showSnackBar(
+        'Verification email sent! Please check your inbox.',
+        backgroundColor: Colors.green,
       );
 
     } on FirebaseAuthException catch (e) {
-      String message = 'Error';
+      String message = '';
       if (e.code == 'email-already-in-use') {
-        message = 'Email already in use. Please sign in instead.';
+        message = 'This email is already registered. Please sign in instead.';
         Future.delayed(const Duration(seconds: 1), () {
-          if (!_isSignInMode) {
+          if (!_isSignInMode && mounted) {
             _toggleMode();
+            _emailController.text = email;
           }
         });
       } else if (e.code == 'invalid-email') {
-        message = 'Invalid email format';
+        message = 'Invalid email format. Please enter a valid email.';
       } else if (e.code == 'too-many-requests') {
         message = 'Too many requests. Please try again later.';
+      } else if (e.code == 'network-request-failed') {
+        message = 'No internet connection. Please check your network.';
+      } else {
+        message = 'Something went wrong. Please try again.';
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
-      );
+      _showSnackBar(message, backgroundColor: Colors.red);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      _showSnackBar(
+        'Error: ${e.toString()}',
+        backgroundColor: Colors.red,
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // ============================================
+
   // STEP 2: CHECK EMAIL VERIFICATION
-  // ============================================
+
   Future<void> _checkVerification() async {
     setState(() => _isLoading = true);
 
@@ -209,79 +660,69 @@ class _SignInScreenState extends State<SignInScreen> {
             'emailVerified': true,
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Email verified! Now set your password.'),
-              backgroundColor: Color(0xFFE6186A),
-            ),
+          _showSnackBar(
+            'Email verified! Now set your password.',
+            backgroundColor: Colors.green,
           );
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('❌ Email not verified yet. Please check your inbox and click the verification link.'),
-              backgroundColor: Colors.orange,
-            ),
+          _showSnackBar(
+            'Email not verified yet. Please check your inbox and click the verification link.',
+            backgroundColor: Colors.orange,
           );
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No user found. Please click Verify first.'),
-            backgroundColor: Colors.red,
-          ),
+        _showSnackBar(
+          'No user found. Please click Verify first.',
+          backgroundColor: Colors.red,
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      _showSnackBar(
+        'Error: ${e.toString()}',
+        backgroundColor: Colors.red,
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // ============================================
+
   // STEP 3: RESEND VERIFICATION EMAIL
-  // ============================================
+
   void _resendVerificationEmail() async {
     setState(() => _isLoading = true);
     try {
       User? user = _auth.currentUser;
       if (user != null && !user.emailVerified) {
         await user.sendEmailVerification();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Verification email resent! Check your inbox.'),
-            backgroundColor: Colors.orange,
-          ),
+        _showSnackBar(
+          'Verification email resent! Check your inbox.',
+          backgroundColor: Colors.orange,
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please click Verify first to create account.'),
-            backgroundColor: Colors.red,
-          ),
+        _showSnackBar(
+          'Please click Verify first to create account.',
+          backgroundColor: Colors.red,
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      _showSnackBar(
+        'Error: ${e.toString()}',
+        backgroundColor: Colors.red,
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // ============================================
+
   // STEP 4: SET PASSWORD (After Email Verified)
-  // ============================================
+
   Future<void> _setPassword() async {
     if (!_isPasswordValid()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please meet all password requirements'),
-          backgroundColor: Colors.orange,
-        ),
+      _showSnackBar(
+        'Please meet all password requirements.',
+        backgroundColor: Colors.orange,
       );
       return;
     }
@@ -295,48 +736,50 @@ class _SignInScreenState extends State<SignInScreen> {
       if (user != null) {
         await user.updatePassword(newPassword);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Password set successfully! Complete your profile.'),
-            backgroundColor: Color(0xFFE6186A),
-          ),
-        );
+        setState(() {
+          _showPasswordSetup = false;
+          _showProfileForm = true;
+        });
 
-        _showProfileCompletionDialog();
+        _showSnackBar(
+          'Password set successfully! Complete your profile.',
+          backgroundColor: Colors.green,
+        );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error setting password: $e'),
-          backgroundColor: Colors.red,
-        ),
+      _showSnackBar(
+        'Error setting password: ${e.toString()}',
+        backgroundColor: Colors.red,
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // ============================================
+
   // STEP 5: SAVE USER PROFILE TO FIRESTORE
-  // ============================================
+
   Future<void> _saveUserInfo() async {
     if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your name'), backgroundColor: Colors.orange),
+      _showSnackBar(
+        'Please enter your name.',
+        backgroundColor: Colors.orange,
       );
       return;
     }
 
     if (_selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select your date of birth'), backgroundColor: Colors.orange),
+      _showSnackBar(
+        'Please select your date of birth.',
+        backgroundColor: Colors.orange,
       );
       return;
     }
 
     if (_countryController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select your country'), backgroundColor: Colors.orange),
+      _showSnackBar(
+        'Please select your country.',
+        backgroundColor: Colors.orange,
       );
       return;
     }
@@ -358,6 +801,21 @@ class _SignInScreenState extends State<SignInScreen> {
           'updatedAt': FieldValue.serverTimestamp(),
         });
 
+
+        // SHOW PERMISSION DIALOG - WITH CENTERED BUTTONS
+
+        bool permissionGranted = await _checkPermissionAndProceed();
+
+        if (!permissionGranted) {
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        _showSnackBar(
+          'Camera & Gallery access granted! Welcome to ShapeSnap.',
+          backgroundColor: Colors.green,
+        );
+
         if (mounted) {
           Navigator.pushReplacement(
             context,
@@ -366,8 +824,9 @@ class _SignInScreenState extends State<SignInScreen> {
         }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      _showSnackBar(
+        'Error: ${e.toString()}',
+        backgroundColor: Colors.red,
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -385,275 +844,13 @@ class _SignInScreenState extends State<SignInScreen> {
     return age;
   }
 
-  // ============================================
-  // STEP 6: SHOW PROFILE COMPLETION DIALOG
-  // ============================================
-  void _showProfileCompletionDialog() {
-    // Reset fields
-    _selectedDate = null;
-    _nameController.clear();
-    _countryController.clear();
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              backgroundColor: Colors.white,
-              titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-              contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              title: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.pink.shade400, Colors.pink.shade600],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.person_add,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Text(
-                    'Complete Your Profile',
-                    style: GoogleFonts.playfairDisplay(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1A2A4F),
-                    ),
-                  ),
-                ],
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.pink.shade50, Colors.pink.shade100.withOpacity(0.3)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.pink.shade200),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          color: Colors.pink.shade700,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Please complete your profile to continue.',
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: Colors.pink.shade700,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Name Field
-                  TextFormField(
-                    controller: _nameController,
-                    style: GoogleFonts.inter(fontSize: 16),
-                    decoration: InputDecoration(
-                      labelText: 'Full Name',
-                      labelStyle: GoogleFonts.inter(color: Colors.grey.shade600),
-                      prefixIcon: Icon(Icons.person_outline, color: const Color(0xFFE6186A)),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFE6186A), width: 2),
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                    onChanged: (value) {
-                      setDialogState(() {});
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  // Date of Birth
-                  InkWell(
-                    onTap: () async {
-                      final DateTime? picked = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
-                        firstDate: DateTime(1900),
-                        lastDate: DateTime.now(),
-                        builder: (context, child) {
-                          return Theme(
-                            data: Theme.of(context).copyWith(
-                              colorScheme: const ColorScheme.light(
-                                primary: Color(0xFFE6186A),
-                                onPrimary: Colors.white,
-                                onSurface: Colors.black,
-                              ),
-                            ),
-                            child: child!,
-                          );
-                        },
-                      );
+  // FORGOT PASSWORD - WITH INLINE ERROR
 
-                      if (picked != null) {
-                        setDialogState(() {
-                          _selectedDate = picked;
-                        });
-                      }
-                    },
-                    child: InputDecorator(
-                      decoration: InputDecoration(
-                        labelText: 'Date of Birth',
-                        labelStyle: GoogleFonts.inter(color: Colors.grey.shade600),
-                        prefixIcon: Icon(Icons.cake_outlined, color: const Color(0xFFE6186A)),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE6186A), width: 2),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            _selectedDate == null
-                                ? 'Select your birth date'
-                                : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              color: _selectedDate == null ? Colors.grey.shade500 : const Color(0xFF1A2A4F),
-                            ),
-                          ),
-                          Icon(Icons.calendar_today, color: const Color(0xFFE6186A), size: 18),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  // Country Dropdown
-                  DropdownButtonFormField<String>(
-                    value: _countryController.text.isEmpty ? null : _countryController.text,
-                    decoration: InputDecoration(
-                      labelText: 'Country',
-                      labelStyle: GoogleFonts.inter(color: Colors.grey.shade600),
-                      prefixIcon: Icon(Icons.public_outlined, color: const Color(0xFFE6186A)),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFE6186A), width: 2),
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                    items: _countries.map((country) {
-                      return DropdownMenuItem(
-                        value: country == 'Select Country' ? null : country,
-                        child: Text(country, style: GoogleFonts.inter()),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setDialogState(() {
-                        _countryController.text = value ?? '';
-                      });
-                    },
-                  ),
-                ],
-              ),
-              actions: [
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      // Validate and save
-                      if (_nameController.text.trim().isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please enter your name'), backgroundColor: Colors.orange),
-                        );
-                        return;
-                      }
-
-                      if (_selectedDate == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please select your date of birth'), backgroundColor: Colors.orange),
-                        );
-                        return;
-                      }
-
-                      if (_countryController.text.trim().isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please select your country'), backgroundColor: Colors.orange),
-                        );
-                        return;
-                      }
-
-                      Navigator.pop(context);
-                      _saveUserInfo();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE6186A),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
-                    ),
-                    child: Text(
-                      'Complete Profile',
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // ============================================
-  // FORGOT PASSWORD - FULLY WORKING
-  // ============================================
   void _showForgotPasswordDialog() {
     final TextEditingController emailController = TextEditingController();
     bool isSending = false;
+    String? emailError;
 
     showDialog(
       context: context,
@@ -666,6 +863,9 @@ class _SignInScreenState extends State<SignInScreen> {
                 borderRadius: BorderRadius.circular(20),
               ),
               backgroundColor: Colors.white,
+              titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+              contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               title: Row(
                 children: [
                   Container(
@@ -724,8 +924,6 @@ class _SignInScreenState extends State<SignInScreen> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: Color(0xFFE6186A), width: 2),
                       ),
-                      filled: true,
-                      fillColor: Colors.white,
                       errorBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: Colors.red, width: 2),
@@ -734,48 +932,41 @@ class _SignInScreenState extends State<SignInScreen> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: Colors.red, width: 2),
                       ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      errorText: emailError,
                     ),
                     keyboardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
-                      }
-                      if (!value.contains('@') || !value.contains('.')) {
-                        return 'Please enter a valid email address';
-                      }
-                      return null;
-                    },
-                    onFieldSubmitted: (_) {
-                      // Trigger reset on Enter key
-                      if (!isSending) {
-                        _sendPasswordReset(emailController.text, context, setDialogState);
+                    onChanged: (value) {
+                      if (emailError != null) {
+                        setDialogState(() {
+                          emailError = null;
+                        });
                       }
                     },
                   ),
-                  const SizedBox(height: 8),
-                  // Helpful tips if user doesn't receive email
+                  const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
+                      color: Colors.grey.shade50,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.blue.shade200),
+                      border: Border.all(color: Colors.grey.shade200),
                     ),
                     child: Row(
                       children: [
                         Icon(
                           Icons.info_outline,
-                          color: Colors.blue.shade700,
+                          color: Colors.grey.shade600,
                           size: 16,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            '📧 Check your spam/junk folder if you don\'t see the email.',
+                            'Check your spam/junk folder if you don\'t see the email.',
                             style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: Colors.blue.shade700,
-                              fontWeight: FontWeight.w500,
+                              color: Colors.grey.shade600,
                             ),
                           ),
                         ),
@@ -812,7 +1003,27 @@ class _SignInScreenState extends State<SignInScreen> {
                         onPressed: isSending
                             ? null
                             : () {
-                          _sendPasswordReset(emailController.text, context, setDialogState);
+                          String email = emailController.text.trim();
+                          if (email.isEmpty) {
+                            setDialogState(() {
+                              emailError = 'Please enter your email address';
+                            });
+                            return;
+                          }
+                          if (!email.contains('@') || !email.contains('.')) {
+                            setDialogState(() {
+                              emailError = 'Please enter a valid email address';
+                            });
+                            return;
+                          }
+                          _sendPasswordReset(
+                            email,
+                            context,
+                            setDialogState,
+                                () => setDialogState(() {
+                              emailError = null;
+                            }),
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFE6186A),
@@ -852,118 +1063,51 @@ class _SignInScreenState extends State<SignInScreen> {
     );
   }
 
-  // ============================================
+
   // SEND PASSWORD RESET EMAIL (Helper)
-  // ============================================
+
   Future<void> _sendPasswordReset(
       String email,
       BuildContext dialogContext,
       StateSetter setDialogState,
+      VoidCallback clearError,
       ) async {
-    // Validate email
-    if (email.isEmpty || !email.contains('@') || !email.contains('.')) {
-      ScaffoldMessenger.of(dialogContext).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid email address'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-
-    setDialogState(() => true); // Show loading
+    setDialogState(() => true);
 
     try {
-      // Send password reset email
       await _auth.sendPasswordResetEmail(email: email.trim());
 
-      // Success
-      setDialogState(() => false); // Hide loading
-
-      // Close dialog
+      setDialogState(() => false);
       Navigator.pop(dialogContext);
 
-      // Show success message
-      ScaffoldMessenger.of(dialogContext).showSnackBar(
-        SnackBar(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white, size: 20),
-                  const SizedBox(width: 10),
-                  Text(
-                    '✅ Reset link sent!',
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Check your email and spam folder.',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: Colors.white70,
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.green.shade700,
-          duration: const Duration(seconds: 4),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.all(16),
-        ),
+      _showSnackBar(
+        'Reset link sent! Check your email and spam folder.',
+        backgroundColor: Colors.green,
       );
 
     } on FirebaseAuthException catch (e) {
-      setDialogState(() => false); // Hide loading
+      setDialogState(() => false);
 
-      String message = 'Something went wrong. Please try again.';
-
+      String message = '';
       if (e.code == 'user-not-found') {
-        message = '❌ No account found with this email address. Please sign up first.';
+        message = 'No account found with this email address. Please sign up first.';
       } else if (e.code == 'invalid-email') {
-        message = '❌ Invalid email format. Please check and try again.';
+        message = 'Invalid email format. Please check and try again.';
       } else if (e.code == 'too-many-requests') {
-        message = '⏳ Too many attempts. Please wait a few minutes and try again.';
+        message = 'Too many attempts. Please wait a few minutes and try again.';
       } else if (e.code == 'network-request-failed') {
-        message = '🌐 No internet connection. Please check your network.';
+        message = 'No internet connection. Please check your network.';
+      } else {
+        message = 'Something went wrong. Please try again.';
       }
 
-      ScaffoldMessenger.of(dialogContext).showSnackBar(
-        SnackBar(
-          content: Text(
-            message,
-            style: GoogleFonts.inter(fontWeight: FontWeight.w500),
-          ),
-          backgroundColor: Colors.red.shade700,
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          margin: const EdgeInsets.all(16),
-        ),
-      );
+      _showSnackBar(message, backgroundColor: Colors.red);
 
     } catch (e) {
       setDialogState(() => false);
-      ScaffoldMessenger.of(dialogContext).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-        ),
+      _showSnackBar(
+        'Error: ${e.toString()}',
+        backgroundColor: Colors.red,
       );
     }
   }
@@ -975,16 +1119,26 @@ class _SignInScreenState extends State<SignInScreen> {
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
 
-    if (email.isEmpty || !email.contains('@')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid email'), backgroundColor: Colors.orange),
+    if (email.isEmpty) {
+      _showSnackBar(
+        'Please enter your email address.',
+        backgroundColor: Colors.orange,
+      );
+      return;
+    }
+
+    if (!email.contains('@') || !email.contains('.')) {
+      _showSnackBar(
+        'Please enter a valid email address.',
+        backgroundColor: Colors.orange,
       );
       return;
     }
 
     if (password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your password'), backgroundColor: Colors.orange),
+      _showSnackBar(
+        'Please enter your password.',
+        backgroundColor: Colors.orange,
       );
       return;
     }
@@ -1004,12 +1158,21 @@ class _SignInScreenState extends State<SignInScreen> {
             'lastLogin': FieldValue.serverTimestamp(),
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Welcome back!'),
-              backgroundColor: Color(0xFFE6186A),
-            ),
+          // ============================================
+          // SHOW PERMISSION DIALOG - WITH CENTERED BUTTONS
+          // ============================================
+          bool permissionGranted = await _checkPermissionAndProceed();
+
+          if (!permissionGranted) {
+            setState(() => _isLoading = false);
+            return;
+          }
+
+          _showSnackBar(
+            '✅ Welcome back! Camera & Gallery access granted.',
+            backgroundColor: Colors.green,
           );
+
           if (mounted) {
             Navigator.pushReplacement(
               context,
@@ -1017,35 +1180,46 @@ class _SignInScreenState extends State<SignInScreen> {
             );
           }
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('❌ Please verify your email first. Check your inbox.'),
-              backgroundColor: Colors.orange,
-            ),
+          _showSnackBar(
+            'Please verify your email first. Check your inbox.',
+            backgroundColor: Colors.orange,
           );
           await _auth.signOut();
         }
       }
     } on FirebaseAuthException catch (e) {
-      String message = 'Error';
+      String message = '';
+
       if (e.code == 'user-not-found') {
-        message = 'No account found. Please sign up.';
-        Future.delayed(const Duration(seconds: 1), () {
-          if (_isSignInMode) {
+        message = 'No account found with this email address. Please sign up.';
+        Future.delayed(const Duration(seconds: 2), () {
+          if (_isSignInMode && mounted) {
             _toggleMode();
+            _emailController.text = email;
           }
         });
       } else if (e.code == 'wrong-password') {
         message = 'Incorrect password. Please try again.';
+      } else if (e.code == 'invalid-email') {
+        message = 'Invalid email format. Please enter a valid email.';
+      } else if (e.code == 'user-disabled') {
+        message = 'This account has been disabled. Please contact support.';
       } else if (e.code == 'too-many-requests') {
-        message = 'Too many attempts. Try again later.';
+        message = 'Too many failed attempts. Please try again later.';
+      } else if (e.code == 'network-request-failed') {
+        message = 'No internet connection. Please check your network.';
+      } else if (e.code == 'invalid-credential') {
+        message = 'Invalid email or password. Please try again.';
+      } else {
+        message = 'Something went wrong. Please try again.';
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
-      );
+
+      _showSnackBar(message, backgroundColor: Colors.red);
+
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      _showSnackBar(
+        'Error: ${e.toString()}',
+        backgroundColor: Colors.red,
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -1084,12 +1258,9 @@ class _SignInScreenState extends State<SignInScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // ============================================
-                      // LOGO - Changed to logo1.png
-                      // ============================================
                       Center(
                         child: Image.asset(
-                          'assets/logo1.png',  // Changed from 'assets/logo.png' to 'assets/logo1.png'
+                          'assets/logo1.png',
                           height: 280,
                           width: 280,
                           fit: BoxFit.contain,
@@ -1139,7 +1310,6 @@ class _SignInScreenState extends State<SignInScreen> {
                       // SIGN UP FLOW
                       // ============================================
                       if (!_isSignInMode) ...[
-                        // Verification Status
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                           decoration: BoxDecoration(
@@ -1164,7 +1334,9 @@ class _SignInScreenState extends State<SignInScreen> {
                               ),
                               const SizedBox(width: 10),
                               Text(
-                                _isEmailVerified ? '✓ Email Verified' : 'Step 1: Verify your email',
+                                _isEmailVerified
+                                    ? (_showPasswordSetup ? 'Step 2: Set Password' : 'Email Verified')
+                                    : 'Step 1: Verify your email',
                                 style: GoogleFonts.inter(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
@@ -1176,7 +1348,6 @@ class _SignInScreenState extends State<SignInScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        // Email Field
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -1200,11 +1371,23 @@ class _SignInScreenState extends State<SignInScreen> {
                                   ),
                                   filled: true,
                                   fillColor: Colors.white,
+                                  errorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Colors.red, width: 2),
+                                  ),
+                                  focusedErrorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Colors.red, width: 2),
+                                  ),
                                 ),
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (value) {
-                                  if (value == null || value.isEmpty) return 'Enter email';
-                                  if (!value.contains('@')) return 'Valid email required';
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your email';
+                                  }
+                                  if (!value.contains('@') || !value.contains('.')) {
+                                    return 'Please enter a valid email';
+                                  }
                                   return null;
                                 },
                               ),
@@ -1231,23 +1414,23 @@ class _SignInScreenState extends State<SignInScreen> {
                           ],
                         ),
 
-                        // Verification Steps
                         if (_isEmailSent && !_isEmailVerified) ...[
                           const SizedBox(height: 12),
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.blue.shade50,
+                              color: Colors.grey.shade50,
                               borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade200),
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+                                Icon(Icons.info_outline, color: Colors.grey.shade600, size: 20),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
                                     'Verification email sent! Check your inbox/spam folder, click the link, then tap "Check".',
-                                    style: GoogleFonts.inter(fontSize: 12, color: Colors.blue.shade700),
+                                    style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade600),
                                   ),
                                 ),
                               ],
@@ -1288,9 +1471,8 @@ class _SignInScreenState extends State<SignInScreen> {
                           ),
                         ],
 
-                        // ============================================
-                        // SET PASSWORD (After Email Verified)
-                        // ============================================
+                        // PASSWORD SETUP - Shows after email verification
+
                         if (_isEmailVerified && _showPasswordSetup) ...[
                           const SizedBox(height: 16),
                           Container(
@@ -1306,11 +1488,11 @@ class _SignInScreenState extends State<SignInScreen> {
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.check_circle, color: Colors.pink.shade700, size: 20),
+                                Icon(Icons.lock_outline, color: Colors.pink.shade700, size: 20),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
-                                    'Step 2: Email verified! Now set your password.',
+                                    'Step 2: Create your password',
                                     style: GoogleFonts.inter(
                                       fontSize: 13,
                                       color: Colors.pink.shade700,
@@ -1323,7 +1505,6 @@ class _SignInScreenState extends State<SignInScreen> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Password Field
                           TextFormField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
@@ -1352,13 +1533,14 @@ class _SignInScreenState extends State<SignInScreen> {
                               fillColor: Colors.white,
                             ),
                             validator: (value) {
-                              if (value == null || value.isEmpty) return 'Create a password';
+                              if (value == null || value.isEmpty) {
+                                return 'Please create a password';
+                              }
                               return null;
                             },
                           ),
                           const SizedBox(height: 12),
 
-                          // Password Requirements
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
@@ -1369,7 +1551,7 @@ class _SignInScreenState extends State<SignInScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  '🔒 Password Requirements:',
+                                  'Password Requirements:',
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
@@ -1385,7 +1567,6 @@ class _SignInScreenState extends State<SignInScreen> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Confirm Password
                           TextFormField(
                             controller: _confirmPasswordController,
                             obscureText: _obscureConfirmPassword,
@@ -1414,12 +1595,13 @@ class _SignInScreenState extends State<SignInScreen> {
                               fillColor: Colors.white,
                             ),
                             validator: (value) {
-                              if (value == null || value.isEmpty) return 'Confirm your password';
+                              if (value == null || value.isEmpty) {
+                                return 'Please confirm your password';
+                              }
                               return null;
                             },
                           ),
 
-                          // Passwords match indicator
                           if (_passwordController.text.isNotEmpty && _confirmPasswordController.text.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 8),
@@ -1432,7 +1614,7 @@ class _SignInScreenState extends State<SignInScreen> {
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    _passwordsMatch ? '✓ Passwords match' : '✗ Passwords do not match',
+                                    _passwordsMatch ? 'Passwords match' : 'Passwords do not match',
                                     style: GoogleFonts.inter(
                                       fontSize: 12,
                                       color: _passwordsMatch ? Colors.green : Colors.red,
@@ -1444,7 +1626,6 @@ class _SignInScreenState extends State<SignInScreen> {
                             ),
                           const SizedBox(height: 24),
 
-                          // Set Password Button
                           SizedBox(
                             width: double.infinity,
                             height: 54,
@@ -1469,11 +1650,197 @@ class _SignInScreenState extends State<SignInScreen> {
                             ),
                           ),
                         ],
+
+
+                        // PROFILE FORM - Shows after password is set
+
+                        if (_showProfileForm) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Colors.green.shade50, Colors.green.shade100.withOpacity(0.3)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.green.shade300),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Step 3: Complete your profile',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      color: Colors.green.shade700,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Name Field
+                          TextFormField(
+                            controller: _nameController,
+                            style: GoogleFonts.inter(fontSize: 16),
+                            decoration: InputDecoration(
+                              labelText: 'Full Name',
+                              hintText: 'Enter your full name',
+                              hintStyle: GoogleFonts.inter(color: Colors.grey.shade400),
+                              labelStyle: GoogleFonts.inter(color: Colors.grey.shade600),
+                              prefixIcon: Icon(Icons.person_outline, color: const Color(0xFFE6186A)),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.grey.shade300),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Color(0xFFE6186A), width: 2),
+                              ),
+                              filled: true,
+                              fillColor: Colors.white,
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your name';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Date of Birth
+                          InkWell(
+                            onTap: () async {
+                              final DateTime? picked = await showDatePicker(
+                                context: context,
+                                initialDate: _selectedDate ?? DateTime.now().subtract(const Duration(days: 365 * 18)),
+                                firstDate: DateTime(1900),
+                                lastDate: DateTime.now(),
+                                builder: (context, child) {
+                                  return Theme(
+                                    data: Theme.of(context).copyWith(
+                                      colorScheme: const ColorScheme.light(
+                                        primary: Color(0xFFE6186A),
+                                        onPrimary: Colors.white,
+                                        onSurface: Colors.black,
+                                      ),
+                                    ),
+                                    child: child!,
+                                  );
+                                },
+                              );
+
+                              if (picked != null) {
+                                setState(() {
+                                  _selectedDate = picked;
+                                });
+                              }
+                            },
+                            child: InputDecorator(
+                              decoration: InputDecoration(
+                                labelText: 'Date of Birth',
+                                labelStyle: GoogleFonts.inter(color: Colors.grey.shade600),
+                                prefixIcon: Icon(Icons.cake_outlined, color: const Color(0xFFE6186A)),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFFE6186A), width: 2),
+                                ),
+                                filled: true,
+                                fillColor: Colors.white,
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    _selectedDate == null
+                                        ? 'Select your birth date'
+                                        : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      color: _selectedDate == null ? Colors.grey.shade500 : const Color(0xFF1A2A4F),
+                                    ),
+                                  ),
+                                  Icon(Icons.calendar_today, color: const Color(0xFFE6186A), size: 18),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Country Dropdown
+                          DropdownButtonFormField<String>(
+                            value: _countryController.text.isEmpty ? null : _countryController.text,
+                            decoration: InputDecoration(
+                              labelText: 'Country',
+                              labelStyle: GoogleFonts.inter(color: Colors.grey.shade600),
+                              prefixIcon: Icon(Icons.public_outlined, color: const Color(0xFFE6186A)),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.grey.shade300),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Color(0xFFE6186A), width: 2),
+                              ),
+                              filled: true,
+                              fillColor: Colors.white,
+                            ),
+                            items: _countries.map((country) {
+                              return DropdownMenuItem(
+                                value: country == 'Select Country' ? null : country,
+                                child: Text(country, style: GoogleFonts.inter()),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _countryController.text = value ?? '';
+                              });
+                            },
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please select your country';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 24),
+
+                          SizedBox(
+                            width: double.infinity,
+                            height: 54,
+                            child: ElevatedButton(
+                              onPressed: _isLoading ? null : _saveUserInfo,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFE6186A),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: _isLoading
+                                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
+                                  : Text('Continue', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600)),
+                            ),
+                          ),
+                        ],
                       ],
 
-                      // ============================================
+
                       // SIGN IN FLOW
-                      // ============================================
+
                       if (_isSignInMode) ...[
                         TextFormField(
                           controller: _emailController,
@@ -1492,11 +1859,23 @@ class _SignInScreenState extends State<SignInScreen> {
                             ),
                             filled: true,
                             fillColor: Colors.white,
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.red, width: 2),
+                            ),
+                            focusedErrorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.red, width: 2),
+                            ),
                           ),
                           keyboardType: TextInputType.emailAddress,
                           validator: (value) {
-                            if (value == null || value.isEmpty) return 'Enter email';
-                            if (!value.contains('@')) return 'Valid email required';
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your email';
+                            }
+                            if (!value.contains('@') || !value.contains('.')) {
+                              return 'Please enter a valid email';
+                            }
                             return null;
                           },
                         ),
@@ -1529,7 +1908,9 @@ class _SignInScreenState extends State<SignInScreen> {
                             fillColor: Colors.white,
                           ),
                           validator: (value) {
-                            if (value == null || value.isEmpty) return 'Enter password';
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your password';
+                            }
                             return null;
                           },
                         ),
@@ -1571,7 +1952,6 @@ class _SignInScreenState extends State<SignInScreen> {
 
                       const SizedBox(height: 16),
 
-                      // Toggle Mode
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -1598,18 +1978,18 @@ class _SignInScreenState extends State<SignInScreen> {
                         ],
                       ),
 
-                      // Steps Info - Updated to be cleaner
-                      if (!_isSignInMode) ...[
+                      if (!_isSignInMode && !_showPasswordSetup && !_showProfileForm) ...[
                         const SizedBox(height: 12),
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1A2A4F).withOpacity(0.05),
+                            color: Colors.grey.shade50,
                             borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade200),
                           ),
                           child: Text(
-                            '📋 How it works:\n1. Enter email → Tap Verify\n2. Check your inbox/spam for the link\n3. Click the verification link\n4. Return here → Tap "Check"\n5. Create your password\n6. Complete your profile',
-                            style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF1A2A4F), height: 1.6),
+                            'How it works:\n1. Enter email and tap Verify\n2. Check your inbox/spam for the link\n3. Click the verification link\n4. Return here and tap "Check"\n5. Create your password\n6. Complete your profile\n7. Grant camera & gallery access to continue',
+                            style: GoogleFonts.inter(fontSize: 11, color: Colors.grey.shade600, height: 1.6),
                             textAlign: TextAlign.center,
                           ),
                         ),

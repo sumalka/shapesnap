@@ -79,6 +79,7 @@ dependencies:
   tflite_flutter: ^0.12.1
   http: ^1.6.0
   connectivity_plus: ^7.3.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -199,7 +200,7 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
 
-# ==================== NATIVE SPLASH SCREEN CONFIGURATION ====================
+#  NATIVE SPLASH SCREEN CONFIGURATION
 flutter_native_splash:
   color: "#E91E63"
   image: assets/logo.png
@@ -209,7 +210,7 @@ flutter_native_splash:
   ios_content_mode: center
   fullscreen: true
 
-# ==================== APP ICON CONFIGURATION ====================
+# APP ICON CONFIGURATION
 flutter_launcher_icons:
   android: true
   ios: true
