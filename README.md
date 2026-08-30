@@ -1,134 +1,116 @@
-ShapeSnap - Setup Guide
+# ShapeSnap - Setup Guide
 
+## 1. Clone Repository
+```
+git clone https://github.com/sumalka/shapesnap.git
+cd shapesnap
+```
 
-1. Clone Repository
+## 2. Install Dependencies
+```
+flutter pub get
+```
 
-   git clone https://github.com/sumalka/shapesnap.git
-   cd shapesnap
+## 3. Generate Hive Adapters
+```
+flutter pub run build_runner build --delete-conflicting-outputs
+```
 
+## 4. Firebase Setup
 
-
-2. Install Dependencies
-
-   flutter pub get
-
-
-
-3. Generate Hive Adapters
-
-   flutter pub run build_runner build --delete-conflicting-outputs
-
-
-
-4. Firebase Setup
-
-4.1 Create Firebase Project
+### 4.1 Create Firebase Project
 - Go to https://console.firebase.google.com/
 - Click "Add project" → Name: shapesnap
 
-
-4.2 Enable Email Authentication
+### 4.2 Enable Email Authentication
 - Firebase Console → Authentication → Sign-in methods
 - Enable Email/Password → Save
 
-
-4.3 Android Setup
+### 4.3 Android Setup
 - Firebase Console → Add app → Android
 - Package name: `com.shapesnap.app`
 - Download `google-services.json`
 - Place in: `shapesnap/android/app/google-services.json`
 
-
-4.4 iOS Setup (Mac only)
+### 4.4 iOS Setup (Mac only)
 - Firebase Console → Add app → iOS
 - Bundle ID: `com.shapesnap.app`
 - Download `GoogleService-Info.plist`
 - Place in: `shapesnap/ios/Runner/GoogleService-Info.plist`
 
+### 4.5 Install iOS Pods (Mac only)
+```
+cd shapesnap/ios
+pod install
+cd ..
+```
 
-4.5 Install iOS Pods (Mac only)
+## 5. Check Model Files
+```
+ls -la shapesnap/assets/model/
+# Should show: shapesnap_model.tflite and labels.txt
+```
 
-   cd shapesnap/ios
-   pod install
-   cd ..
+## 6. Run the App
+```
+flutter run
+```
 
+## 7. Build APK
 
-5. Check Model Files
+### Release APK
+```
+flutter build apk --release
+```
+Output: `shapesnap/build/app/outputs/flutter-apk/app-release.apk`
 
-   ls -la shapesnap/assets/model/
-   Should show: shapesnap_model.tflite and labels.txt
+### Split APKs (smaller)
+```
+flutter build apk --split-per-abi --release
+```
+Output: `shapesnap/build/app/outputs/flutter-apk/`
 
+### App Bundle (Google Play)
+```
+flutter build appbundle --release
+```
+Output: `shapesnap/build/app/outputs/bundle/release/app-release.aab`
 
+## 8. Troubleshooting
 
-6. Run the App
+### Build Errors
+```
+flutter clean
+flutter pub get
+```
 
-   flutter run
+### Hive Errors
+```
+flutter pub run build_runner build --delete-conflicting-outputs
+```
 
+### iOS Issues (Mac)
+```
+cd shapesnap/ios
+pod deintegrate
+pod install
+cd ..
+```
 
+### Check Connected Devices
+```
+flutter devices
+```
 
-7. Build APK
-
-   **Release APK**
-
-   flutter build apk --release
-
-   Output: `shapesnap/build/app/outputs/flutter-apk/app-release.apk`
-
-
-
-   **Split APKs (smaller)**
-
-   flutter build apk --split-per-abi --release
-   Output: `shapesnap/build/app/outputs/flutter-apk/`
-
-
-
-   **App Bundle (Google Play)**
-
-   flutter build appbundle --release
-   Output: `shapesnap/build/app/outputs/bundle/release/app-release.aab`
-
-
-
-8. Troubleshooting
-
-   **Build Errors**
-
-   flutter clean
-   flutter pub get
-
-
-
-   **Hive Errors**
-
-   flutter pub run build_runner build --delete-conflicting-outputs
-
-
-
-   **iOS Issues (Mac)**
-
-   cd shapesnap/ios
-   pod deintegrate
-   pod install
-   cd ..
-
-
-
-   **Check Connected Devices**
-
-   flutter devices
-
-
-
-Firebase Not Working
+### Firebase Not Working
 - Verify `shapesnap/android/app/google-services.json` exists
 - Check package name matches Firebase project
 
+---
 
+## Packages Used
 
-**Packages Used**
-
-
+```
 dependencies:
   flutter: sdk: flutter
   cupertino_icons: ^1.0.9
@@ -165,7 +147,5 @@ dev_dependencies:
   flutter_test: sdk: flutter
   flutter_lints: ^6.0.0
   build_runner: ^2.15.0
-
-
-
+```
 
