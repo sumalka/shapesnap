@@ -101,7 +101,7 @@ class _SignInScreenState extends State<SignInScreen> {
     });
   }
 
-  // PERMISSION DIALOG - CENTERED BUTTONS
+  // PERMISSION DIALOG - CENTERED BUTTONS (WITHOUT SECOND DIALOG)
 
   Future<bool> _showPermissionDialog() async {
     Completer<bool> completer = Completer<bool>();
@@ -268,8 +268,12 @@ class _SignInScreenState extends State<SignInScreen> {
                       bool granted = await _requestSystemPermissions();
                       completer.complete(granted);
 
+                      // Only show snackbar if permission was denied
                       if (!granted && mounted) {
-                        _showPermissionDeniedDialog();
+                        _showSnackBar(
+                          'Gallery permission not granted. You can grant it later from settings.',
+                          backgroundColor: Colors.orange,
+                        );
                       }
                     },
                     style: TextButton.styleFrom(
@@ -300,183 +304,57 @@ class _SignInScreenState extends State<SignInScreen> {
     return await completer.future;
   }
 
-
-  // PERMISSION DENIED DIALOG - KEEP ASKING
-
-  void _showPermissionDeniedDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          backgroundColor: Colors.white,
-          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-          contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          title: Text(
-            'Permissions Required',
-            style: GoogleFonts.inter(
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
-              color: Colors.red.shade700,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Camera & Gallery access is essential for ShapeSnap to work. Please grant both permissions to continue using the app.',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: Colors.grey.shade700,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.settings,
-                      color: Colors.grey.shade600,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'You can enable permissions in Settings > Apps > ShapeSnap > Permissions',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _showSnackBar(
-                        'Camera & Gallery permissions are required to use the app.',
-                        backgroundColor: Colors.orange,
-                      );
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFFE6186A),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Text(
-                      "Cancel",
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFFE6186A),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  TextButton(
-                    onPressed: () async {
-                      Navigator.pop(context);
-                      bool granted = await _requestSystemPermissions();
-                      if (granted) {
-                        if (mounted) {
-                          _showSnackBar(
-                            ' Camera & Gallery access granted!',
-                            backgroundColor: Colors.green,
-                          );
-                          if (mounted) {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(builder: (context) => const HomeScreen()),
-                            );
-                          }
-                        }
-                      } else {
-                        if (mounted) {
-                          _showPermissionDeniedDialog();
-                        }
-                      }
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      backgroundColor: const Color(0xFFE6186A),
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Text(
-                      'Grant Permissions',
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-
-  // REQUEST SYSTEM PERMISSIONS
+  // REQUEST SYSTEM PERMISSIONS - FIXED
 
   Future<bool> _requestSystemPermissions() async {
     try {
+      // Request Camera permission
       PermissionStatus cameraStatus = await Permission.camera.status;
-
       if (!cameraStatus.isGranted) {
         cameraStatus = await Permission.camera.request();
       }
-      print(' Camera permission result: $cameraStatus');
+      print('Camera permission result: $cameraStatus');
 
+      // Request Storage/Gallery permission based on Android version
       PermissionStatus storageStatus;
+
       if (Platform.isAndroid) {
-        if (await _isAndroid13OrHigher()) {
+        // Check if Android 13+ (API 33+)
+        final sdkInt = await _getAndroidSdkVersion();
+
+        if (sdkInt >= 33) {
+          // Android 13+ - use photos permission
           storageStatus = await Permission.photos.status;
           if (!storageStatus.isGranted) {
             storageStatus = await Permission.photos.request();
           }
         } else {
+          // Android 12 and below - use storage permission
           storageStatus = await Permission.storage.status;
           if (!storageStatus.isGranted) {
             storageStatus = await Permission.storage.request();
           }
         }
       } else {
+        // iOS - use photos permission
         storageStatus = await Permission.photos.status;
         if (!storageStatus.isGranted) {
           storageStatus = await Permission.photos.request();
         }
       }
+
       print('Gallery/Storage permission result: $storageStatus');
+
+      // Return true if both permissions are granted
+      // For Android 13+, if photos permission is limited, treat as granted
+      if (Platform.isAndroid) {
+        final sdkInt = await _getAndroidSdkVersion();
+        if (sdkInt >= 33) {
+          // On Android 13+, limited access is acceptable
+          return cameraStatus.isGranted &&
+              (storageStatus.isGranted || storageStatus == PermissionStatus.limited);
+        }
+      }
 
       return cameraStatus.isGranted && storageStatus.isGranted;
 
@@ -486,18 +364,28 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
-  Future<bool> _isAndroid13OrHigher() async {
+  // Helper method to get Android SDK version
+  Future<int> _getAndroidSdkVersion() async {
     if (Platform.isAndroid) {
       try {
-        final photosStatus = await Permission.photos.status;
-        return photosStatus != PermissionStatus.denied ||
-            photosStatus == PermissionStatus.granted ||
-            photosStatus == PermissionStatus.limited;
+        // Use a more reliable method to check Android version
+        return await _checkAndroidVersion();
       } catch (e) {
-        return false;
+        return 0;
       }
     }
-    return false;
+    return 0;
+  }
+
+  Future<int> _checkAndroidVersion() async {
+    try {
+      // Check if photos permission exists (Android 13+)
+      final status = await Permission.photos.status;
+      // If we can check photos permission, it's likely Android 13+
+      return 33; // Assume Android 13+
+    } catch (e) {
+      return 32; // Android 12 or below
+    }
   }
 
   // CHECK PERMISSION - SHOW DIALOG WITH CANCEL
@@ -538,24 +426,51 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
 
-  // SHOW CUSTOM SNACKBAR
+  // SHOW CUSTOM SNACKBAR - UPDATED WITH APP THEME
 
   void _showSnackBar(String message, {Color backgroundColor = Colors.pink}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          message,
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w500,
-          ),
+        content: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                backgroundColor == Colors.green ? Icons.check_circle :
+                backgroundColor == Colors.orange ? Icons.info_outline :
+                Icons.error_outline,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                  color: Colors.white,
+                  height: 1.3,
+                ),
+              ),
+            ),
+          ],
         ),
         backgroundColor: backgroundColor,
         duration: const Duration(seconds: 4),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
         ),
         margin: const EdgeInsets.all(16),
+        elevation: 6,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
     );
   }
@@ -757,6 +672,38 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
 
+  // SHOW SUCCESS MESSAGE - PINK COLOR WITHOUT EMOJIS OR ICONS
+
+  void _showSuccessMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.inter(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            letterSpacing: 0.3,
+            height: 1.3,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        backgroundColor: const Color(0xFFE6186A),
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        margin: const EdgeInsets.all(16),
+        elevation: 8,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      ),
+    );
+  }
+
+
   // STEP 5: SAVE USER PROFILE TO FIRESTORE
 
   Future<void> _saveUserInfo() async {
@@ -789,11 +736,12 @@ class _SignInScreenState extends State<SignInScreen> {
     try {
       User? user = _auth.currentUser;
       if (user != null && user.emailVerified) {
-        await user.updateDisplayName(_nameController.text.trim());
+        final String userName = _nameController.text.trim();
+        await user.updateDisplayName(userName);
         await user.reload();
 
         await _firestore.collection('users').doc(user.uid).update({
-          'name': _nameController.text.trim(),
+          'name': userName,
           'dateOfBirth': _selectedDate!.toIso8601String(),
           'age': _calculateAge(),
           'country': _countryController.text.trim(),
@@ -801,9 +749,7 @@ class _SignInScreenState extends State<SignInScreen> {
           'updatedAt': FieldValue.serverTimestamp(),
         });
 
-
         // SHOW PERMISSION DIALOG - WITH CENTERED BUTTONS
-
         bool permissionGranted = await _checkPermissionAndProceed();
 
         if (!permissionGranted) {
@@ -811,16 +757,21 @@ class _SignInScreenState extends State<SignInScreen> {
           return;
         }
 
-        _showSnackBar(
-          'Camera & Gallery access granted! Welcome to ShapeSnap.',
-          backgroundColor: Colors.green,
+        // SHOW SUCCESS MESSAGE - PINK COLOR
+        _showSuccessMessage(
+          'Welcome to ShapeSnap! Your account has been created successfully.',
         );
 
+        // Navigate to home screen
         if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
+          await Future.delayed(const Duration(milliseconds: 1000));
+          if (mounted) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  (route) => false,
+            );
+          }
         }
       }
     } catch (e) {
@@ -828,6 +779,7 @@ class _SignInScreenState extends State<SignInScreen> {
         'Error: ${e.toString()}',
         backgroundColor: Colors.red,
       );
+      setState(() => _isLoading = false);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -1112,9 +1064,9 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
-  // ============================================
-  // SIGN IN (Existing User)
-  // ============================================
+
+  // SIGN IN (Existing User) - WITH WELCOME MESSAGE AFTER PERMISSION
+
   Future<void> _signIn() async {
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
@@ -1154,13 +1106,22 @@ class _SignInScreenState extends State<SignInScreen> {
       User? user = userCredential.user;
       if (user != null) {
         if (user.emailVerified) {
+          // Get user name from Firestore for welcome message
+          String userName = '';
+          try {
+            DocumentSnapshot userDoc = await _firestore.collection('users').doc(user.uid).get();
+            if (userDoc.exists) {
+              userName = userDoc.get('name') ?? '';
+            }
+          } catch (e) {
+            // Ignore - we'll use default welcome
+          }
+
           await _firestore.collection('users').doc(user.uid).update({
             'lastLogin': FieldValue.serverTimestamp(),
           });
 
-          // ============================================
           // SHOW PERMISSION DIALOG - WITH CENTERED BUTTONS
-          // ============================================
           bool permissionGranted = await _checkPermissionAndProceed();
 
           if (!permissionGranted) {
@@ -1168,16 +1129,23 @@ class _SignInScreenState extends State<SignInScreen> {
             return;
           }
 
-          _showSnackBar(
-            '✅ Welcome back! Camera & Gallery access granted.',
-            backgroundColor: Colors.green,
-          );
+          // SHOW WELCOME BACK MESSAGE - PINK COLOR
+          if (userName.isNotEmpty) {
+            _showSuccessMessage('Welcome back, $userName');
+          } else {
+            _showSuccessMessage('Welcome back!');
+          }
 
+          // Navigate to home screen
           if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HomeScreen()),
-            );
+            await Future.delayed(const Duration(milliseconds: 1000));
+            if (mounted) {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
+                    (route) => false,
+              );
+            }
           }
         } else {
           _showSnackBar(
@@ -1185,6 +1153,7 @@ class _SignInScreenState extends State<SignInScreen> {
             backgroundColor: Colors.orange,
           );
           await _auth.signOut();
+          setState(() => _isLoading = false);
         }
       }
     } on FirebaseAuthException catch (e) {
@@ -1215,12 +1184,14 @@ class _SignInScreenState extends State<SignInScreen> {
       }
 
       _showSnackBar(message, backgroundColor: Colors.red);
+      setState(() => _isLoading = false);
 
     } catch (e) {
       _showSnackBar(
         'Error: ${e.toString()}',
         backgroundColor: Colors.red,
       );
+      setState(() => _isLoading = false);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -1306,9 +1277,9 @@ class _SignInScreenState extends State<SignInScreen> {
                         ),
                       const SizedBox(height: 16),
 
-                      // ============================================
+
                       // SIGN UP FLOW
-                      // ============================================
+
                       if (!_isSignInMode) ...[
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -1977,23 +1948,6 @@ class _SignInScreenState extends State<SignInScreen> {
                           ),
                         ],
                       ),
-
-                      if (!_isSignInMode && !_showPasswordSetup && !_showProfileForm) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.shade200),
-                          ),
-                          child: Text(
-                            'How it works:\n1. Enter email and tap Verify\n2. Check your inbox/spam for the link\n3. Click the verification link\n4. Return here and tap "Check"\n5. Create your password\n6. Complete your profile\n7. Grant camera & gallery access to continue',
-                            style: GoogleFonts.inter(fontSize: 11, color: Colors.grey.shade600, height: 1.6),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -2005,9 +1959,9 @@ class _SignInScreenState extends State<SignInScreen> {
     );
   }
 
-  // ============================================
+
   // PASSWORD REQUIREMENT TILE WIDGET
-  // ============================================
+
   Widget _buildRequirementTile(String text, bool isMet) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),

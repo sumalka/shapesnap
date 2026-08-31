@@ -124,9 +124,7 @@ class _OccasionScreenState extends State<OccasionScreen> {
     return '${occasion}_${bodyShape.toString().split('.').last}';
   }
 
-
   // SIMPLE RELIABLE OFFLINE CHECK
-
   Future<bool> _checkInternet() async {
     try {
       final List<ConnectivityResult> result = await _connectivity.checkConnectivity();
@@ -138,53 +136,25 @@ class _OccasionScreenState extends State<OccasionScreen> {
     }
   }
 
-  // ============================================
-  // OPEN INTERNET SETTINGS
-  // ============================================
-  Future<void> _openInternetSettings() async {
+
+  // SHOW SNACKBAR SAFELY - WITH CONTEXT CHECK
+
+  void _showSnackBarSafe(String message, {Color backgroundColor = Colors.green, int durationSeconds = 2}) {
+    if (!mounted) return;
     try {
-      if (Platform.isAndroid) {
-        // Android - opens WiFi settings
-        const androidSettingsUrl = 'android.settings.WIFI_SETTINGS';
-        if (await canLaunchUrl(Uri.parse(androidSettingsUrl))) {
-          await launchUrl(Uri.parse(androidSettingsUrl));
-        } else {
-          // Fallback: open general settings
-          const fallbackUrl = 'android.settings.SETTINGS';
-          if (await canLaunchUrl(Uri.parse(fallbackUrl))) {
-            await launchUrl(Uri.parse(fallbackUrl));
-          }
-        }
-      } else if (Platform.isIOS) {
-        // iOS - opens settings app
-        const iosSettingsUrl = 'app-settings:';
-        if (await canLaunchUrl(Uri.parse(iosSettingsUrl))) {
-          await launchUrl(Uri.parse(iosSettingsUrl));
-        }
-      } else {
-        // Web or other platforms - show a message
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please connect to the internet manually.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      // If we can't open settings, just show a message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Please connect to the internet manually: ${e.toString()}'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 3),
+          content: Text(message),
+          backgroundColor: backgroundColor,
+          duration: Duration(seconds: durationSeconds),
         ),
       );
+    } catch (e) {
+      // Ignore - context might not be available
     }
   }
 
-  // INTERNET CONNECTION STATUS DIALOG
-
+  // INTERNET CONNECTION STATUS DIALOG - FIXED OVERFLOW
   void _showInternetStatusDialog(bool isConnected, BuildContext context, String occasion, StateSetter setState, ScrollController scrollController) {
     showDialog(
       context: context,
@@ -197,7 +167,7 @@ class _OccasionScreenState extends State<OccasionScreen> {
           backgroundColor: Colors.white,
           titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
           contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -232,7 +202,7 @@ class _OccasionScreenState extends State<OccasionScreen> {
               Text(
                 isConnected
                     ? 'You are connected to the internet. Ready to generate stunning AI outfit images!'
-                    : 'To generate AI outfit images, you need an active internet connection.',
+                    : 'To generate AI outfit images, you need an active internet connection.\n\nPlease connect to Wi-Fi or Mobile Data and try again.',
                 style: GoogleFonts.inter(
                   fontSize: 14,
                   color: Colors.grey.shade700,
@@ -251,7 +221,7 @@ class _OccasionScreenState extends State<OccasionScreen> {
                 child: Row(
                   children: [
                     Icon(
-                      isConnected ? Icons.check_circle_outline : Icons.lightbulb_outline,
+                      isConnected ? Icons.check_circle_outline : Icons.wifi_off_outlined,
                       color: isConnected ? Colors.green.shade400 : Colors.pink.shade400,
                       size: 18,
                     ),
@@ -260,7 +230,7 @@ class _OccasionScreenState extends State<OccasionScreen> {
                       child: Text(
                         isConnected
                             ? 'AI generation will start in a moment. Please wait...'
-                            : 'Tap "Connect to Internet" to open your phone\'s settings.',
+                            : 'Please connect to the internet and try again.',
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           color: isConnected ? Colors.green.shade700 : Colors.pink.shade700,
@@ -274,72 +244,90 @@ class _OccasionScreenState extends State<OccasionScreen> {
             ],
           ),
           actions: [
-            Row(
+            // Use Wrap or Column for better responsive layout
+            isConnected
+                ? Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.grey.shade600,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                // Cancel button
+                Expanded(
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.grey.shade700,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                      minimumSize: const Size(80, 44),
                     ),
-                    side: BorderSide(color: Colors.grey.shade300),
-                  ),
-                  child: Text(
-                    isConnected ? 'Cancel' : 'Cancel',
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade600,
+                    child: Text(
+                      'Cancel',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: isConnected
-                      ? () {
-                    Navigator.pop(context);
-                    // Proceed with generation
-                    _startGeneration(context, occasion, setState, scrollController);
-                  }
-                      : () {
-                    // Close dialog and open internet settings
-                    Navigator.pop(context);
-                    _openInternetSettings();
-                    // Show a snackbar informing user
-                    Future.delayed(const Duration(milliseconds: 500), () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Opening internet settings... Please connect and try again.'),
-                          backgroundColor: Colors.blue,
-                          duration: Duration(seconds: 3),
-                        ),
-                      );
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isConnected ? const Color(0xFFE6186A) : Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                // Generate Now button
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _startGeneration(context, occasion, setState, scrollController);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE6186A),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 2,
+                      minimumSize: const Size(80, 44),
                     ),
-                    elevation: 2,
-                  ),
-                  child: Text(
-                    isConnected ? 'Generate Now' : 'Connect to Internet',
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                    child: Text(
+                      'Generate Now',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
               ],
+            )
+                : Center(
+              child: TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.grey.shade700,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                  minimumSize: const Size(120, 44),
+                ),
+                child: Text(
+                  'Cancel',
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ),
             ),
           ],
         );
@@ -347,9 +335,9 @@ class _OccasionScreenState extends State<OccasionScreen> {
     );
   }
 
-  // ============================================
+
   // START GENERATION AFTER INTERNET CHECK
-  // ============================================
+
   Future<void> _startGeneration(
       BuildContext context,
       String occasion,
@@ -358,9 +346,11 @@ class _OccasionScreenState extends State<OccasionScreen> {
       ) async {
     final storageKey = _getStorageKey(occasion, _selectedBodyShape);
 
-    setState(() {
-      _isGenerating[storageKey] = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isGenerating[storageKey] = true;
+      });
+    }
 
     // Scroll to bottom to show progress
     Future.delayed(const Duration(milliseconds: 150), () {
@@ -379,9 +369,9 @@ class _OccasionScreenState extends State<OccasionScreen> {
     await _generateAndAddImage(context, occasion, storageKey, prompt, clothingName, setState, scrollController);
   }
 
-  // ============================================
+
   // GENERATE AI IMAGE - WITH INTERNET CHECK
-  // ============================================
+
   Future<void> _generateSingleAIImage(
       BuildContext context,
       String occasion,
@@ -890,9 +880,9 @@ class _OccasionScreenState extends State<OccasionScreen> {
     );
   }
 
-  // ============================================
+
   // SHOW OCCASION DETAILS
-  // ============================================
+
   void _showOccasionDetails(BuildContext context, String occasion) {
     final imageService = OccasionImageService();
     final images = imageService.getOccasionImages(_selectedBodyShape, occasion);
@@ -1478,9 +1468,9 @@ class _OccasionScreenState extends State<OccasionScreen> {
     );
   }
 
-  // ============================================
+
   // FULL SCREEN IMAGE VIEWER
-  // ============================================
+
   void _showFullScreenImage(BuildContext context, String imageUrl, String occasion, String clothingName) {
     Navigator.push(
       context,
@@ -1655,6 +1645,8 @@ class _OccasionScreenState extends State<OccasionScreen> {
         height: 512,
       );
 
+      if (!mounted) return;
+
       if (imageUrl.isNotEmpty) {
         setState(() {
           if (!_generatedImages.containsKey(storageKey)) {
@@ -1676,36 +1668,23 @@ class _OccasionScreenState extends State<OccasionScreen> {
           }
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$clothingName generated!'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        _showSnackBarSafe('$clothingName generated!', backgroundColor: Colors.green);
       } else {
         setState(() {
           _isGenerating[storageKey] = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to generate. Please try again.'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        _showSnackBarSafe('Failed to generate. Please try again.', backgroundColor: Colors.red);
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isGenerating[storageKey] = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed: ${e.toString().replaceFirst('Exception: ', '')}'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-        ),
+      _showSnackBarSafe(
+        'Failed: ${e.toString().replaceFirst('Exception: ', '')}',
+        backgroundColor: Colors.red,
+        durationSeconds: 3,
       );
     }
   }

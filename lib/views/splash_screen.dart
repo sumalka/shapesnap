@@ -58,57 +58,20 @@ class _SplashScreenState extends State<SplashScreen> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // LOGO - MAXIMUM SIZE with padding
-              Expanded(
-                flex: 9,
-                child: Center(
-                  child: Image.asset(
-                    'assets/logo.png',
-                    // Use the smaller dimension to ensure it fits
-                    height: screenHeight * 0.8,
-                    width: screenWidth * 0.9,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Icon(
-                        Icons.star_outline,
-                        size: screenHeight * 0.4,
-                        color: Colors.white,
-                      );
-                    },
-                  ),
-                ),
-              ),
-
-              // Loading indicator
-              Expanded(
-                flex: 1,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(
-                      width: 40,
-                      height: 40,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 3,
-                        color: Colors.white.withOpacity(0.8),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Loading...',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: Colors.white.withOpacity(0.6),
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          child: Center(
+            child: Image.asset(
+              'assets/logo.png',
+              height: screenHeight * 0.8,
+              width: screenWidth * 0.9,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return Icon(
+                  Icons.star_outline,
+                  size: screenHeight * 0.4,
+                  color: Colors.white,
+                );
+              },
+            ),
           ),
         ),
       ),
